@@ -92,18 +92,32 @@ export function AdminKnowledgeBase({
     busy?.id === id && busy.kind === kind;
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
-      <div>
-        <p className="text-sm font-medium text-teal">Admin</p>
-        <h1 className="mt-1 font-heading text-2xl font-bold tracking-tight text-navy sm:text-3xl">
-          Legal Knowledge Base
-        </h1>
-        <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-          Verify and manage the laws the AI assistant can cite. Only documents marked{" "}
-          <strong className="font-semibold text-navy">verified</strong> and{" "}
-          <strong className="font-semibold text-navy">ready</strong> are returned by the
-          assistant&apos;s search.
-        </p>
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-5">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="font-heading text-2xl font-bold text-[#0A2843]">
+              Legal Knowledge Base & Statutes
+            </h1>
+            <Badge className="bg-[#ECFDF5] text-[#0CA275] border-[#0CA275]/30 text-xs">
+              pgvector RAG
+            </Badge>
+          </div>
+          <p className="mt-1 text-xs text-slate-500 max-w-2xl">
+            Inspect, upload, and human-verify Pakistani federal and provincial statutes. Only documents approved as{" "}
+            <strong className="text-[#0A2843] font-semibold">verified</strong> and{" "}
+            <strong className="text-[#0A2843] font-semibold">ready</strong> are retrieved for citizen AI legal queries.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button asChild className="bg-[#0CA275] hover:bg-[#098862] text-white text-xs gap-1.5 shadow-xs">
+            <a href="/admin/knowledge-base/upload">
+              <FileText className="size-3.5" />
+              Upload Legal Document
+            </a>
+          </Button>
+        </div>
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">

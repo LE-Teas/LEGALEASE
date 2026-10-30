@@ -22,6 +22,7 @@ interface SignupFormProps {
 export function SignupForm({ role, onBack }: SignupFormProps) {
   const [state, formAction, pending] = useActionState(signUp, initialState);
   const [clientError, setClientError] = useState<string | null>(null);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   // Account created but waiting on email confirmation.
   if (state.ok && state.message) {
@@ -47,16 +48,16 @@ export function SignupForm({ role, onBack }: SignupFormProps) {
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     const form = event.currentTarget;
-    const password = new FormData(form).get("password") as string | null;
-    const confirm = new FormData(form).get("confirm_password") as string | null;
-    const terms = form.elements.namedItem("terms") as HTMLInputElement | null;
+    const formData = new FormData(form);
+    const password = formData.get("password") as string | null;
+    const confirm = formData.get("confirm_password") as string | null;
 
     if (password !== confirm) {
       event.preventDefault();
       setClientError("Passwords do not match.");
       return;
     }
-    if (terms && !terms.checked) {
+    if (!acceptedTerms) {
       event.preventDefault();
       setClientError("Please accept the Terms of Service to continue.");
       return;
@@ -91,30 +92,29 @@ export function SignupForm({ role, onBack }: SignupFormProps) {
           />
         </div>
 
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="phone">Phone number</Label>
+          <Input
+            id="phone"
+            name="phone"
+            type="tel"
+            placeholder="+92 300 1234567"
+            autoComplete="tel"
+            required
+          />
+        </div>
+
         {isLawyer && (
-          <>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="phone">Phone number</Label>
-              <Input
-                id="phone"
-                name="phone"
-                type="tel"
-                placeholder="+92 300 1234567"
-                autoComplete="tel"
-                required
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="city">City</Label>
-              <Input
-                id="city"
-                name="city"
-                placeholder="e.g. Karachi"
-                autoComplete="address-level2"
-                required
-              />
-            </div>
-          </>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="city">City</Label>
+            <Input
+              id="city"
+              name="city"
+              placeholder="e.g. Karachi"
+              autoComplete="address-level2"
+              required
+            />
+          </div>
         )}
 
         <div className="flex flex-col gap-1.5">
@@ -157,10 +157,19 @@ export function SignupForm({ role, onBack }: SignupFormProps) {
         </div>
 
         <div className="flex items-start gap-2">
-          <Checkbox id="terms" name="terms" className="mt-0.5" />
+          <Checkbox
+            id="terms"
+            name="terms"
+            checked={acceptedTerms}
+            onCheckedChange={(checked) => {
+              setAcceptedTerms(Boolean(checked));
+              if (checked) setClientError(null);
+            }}
+            className="mt-0.5"
+          />
           <Label
             htmlFor="terms"
-            className="text-xs font-normal leading-relaxed"
+            className="text-xs font-normal leading-relaxed cursor-pointer"
           >
             I agree to the Terms of Service and Privacy Policy, and I understand
             the AI assistant is not a substitute for legal advice.

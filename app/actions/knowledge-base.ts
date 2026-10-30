@@ -176,3 +176,286 @@ export async function reprocessDocument(id: string): Promise<AdminActionResult> 
   revalidatePath("/admin/knowledge-base");
   return { ok: true };
 }
+
+/**
+ * Toggle document active/inactive state.
+ */
+export async function toggleDocumentActive(id: string): Promise<AdminActionResult> {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard;
+
+  const parsed = idSchema.safeParse(id);
+  if (!parsed.success) return { ok: false, error: "Invalid document id." };
+
+  const admin = createAdminClient();
+  if (!admin) return { ok: false, error: "Database unavailable." };
+
+  const { data: current } = await admin
+    .from("legal_documents")
+    .select("is_active, title")
+    .eq("id", parsed.data)
+    .single();
+
+  if (!current) return { ok: false, error: "Document not found." };
+
+  const nextState = !current.is_active;
+  const { error } = await admin
+    .from("legal_documents")
+    .update({ is_active: nextState })
+    .eq("id", parsed.data);
+
+  if (error) return { ok: false, error: error.message };
+
+  await admin.from("admin_audit_logs").insert({
+    admin_id: (await getAuthState()).user?.id,
+    action: nextState ? "document_activated" : "document_deactivated",
+    entity_type: "legal_documents",
+    entity_id: parsed.data,
+    metadata: { title: current.title },
+  });
+
+  revalidatePath("/admin/knowledge-base");
+  revalidatePath(`/admin/knowledge-base/${parsed.data}`);
+  return { ok: true };
+}
+
+/**
+ * Update document metadata (title, category, jurisdiction, etc.)
+ */
+export async function updateDocumentMetadata(
+  id: string,
+  updates: {
+    title?: string;
+    short_title?: string;
+    document_type?: string;
+    category?: string;
+    jurisdiction_level?: string;
+    province?: string | null;
+    year?: number | null;
+    official_source_url?: string | null;
+    source_authority?: string | null;
+    version_label?: string | null;
+  }
+): Promise<AdminActionResult> {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard;
+
+  const parsed = idSchema.safeParse(id);
+  if (!parsed.success) return { ok: false, error: "Invalid document id." };
+
+  const admin = createAdminClient();
+  if (!admin) return { ok: false, error: "Database unavailable." };
+
+  const { error } = await admin
+    .from("legal_documents")
+    .update(updates)
+    .eq("id", parsed.data);
+
+  if (error) return { ok: false, error: error.message };
+
+  await admin.from("admin_audit_logs").insert({
+    admin_id: (await getAuthState()).user?.id,
+    action: "document_metadata_updated",
+    entity_type: "legal_documents",
+    entity_id: parsed.data,
+    metadata: updates,
+  });
+
+  revalidatePath("/admin/knowledge-base");
+  revalidatePath(`/admin/knowledge-base/${parsed.data}`);
+  return { ok: true };
+}
+
+/**
+ * Upload a legal PDF document from Admin Dashboard.
+ * Handles SHA-256 duplicate detection, version collision detection,
+ * storage upload, text extraction, chunking, and embedding.
+ */
+export async function uploadDocumentAction(
+  formData: FormData
+): Promise<{ ok: boolean; error?: string; documentId?: string; warning?: string }> {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard;
+
+  const admin = createAdminClient();
+  if (!admin) return { ok: false, error: "Database admin client unavailable." };
+
+  try {
+    const file = formData.get("file") as File | null;
+    if (!file) return { ok: false, error: "No PDF file provided." };
+
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      return { ok: false, error: "Only PDF documents are supported for legal knowledge base." };
+    }
+
+    const title = (formData.get("title") as string)?.trim() || file.name.replace(/\.pdf$/i, "");
+    const documentType = (formData.get("document_type") as string) || "statute";
+    const category = (formData.get("category") as string) || "other";
+    const jurisdictionLevel = (formData.get("jurisdiction_level") as string) || "Federal";
+    const province = (formData.get("province") as string) || null;
+    const yearRaw = formData.get("year") as string;
+    const year = yearRaw && !isNaN(Number(yearRaw)) ? Number(yearRaw) : null;
+    const sourceAuthority = (formData.get("source_authority") as string) || null;
+    const officialSourceUrl = (formData.get("official_source_url") as string) || null;
+    const versionLabel = (formData.get("version_label") as string) || null;
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    // 1. Calculate SHA-256
+    const { createHash } = await import("node:crypto");
+    const fileHash = createHash("sha256").update(buffer).digest("hex");
+
+    // 2. Exact Duplicate Check
+    const { data: existingHash } = await admin
+      .from("legal_documents")
+      .select("id, title")
+      .eq("file_hash", fileHash)
+      .maybeSingle();
+
+    if (existingHash) {
+      return {
+        ok: false,
+        error: `Exact duplicate file already exists in Knowledge Base: "${existingHash.title}" (ID: ${existingHash.id}). Ingestion aborted to avoid duplicate embeddings.`,
+      };
+    }
+
+    // 3. Normalized title & Version Collision Check
+    const { slugify } = await import("@/lib/rag/document-catalog");
+    const normalizedTitle = slugify(title);
+
+    const { data: existingTitle } = await admin
+      .from("legal_documents")
+      .select("id, title, version_label")
+      .eq("normalized_title", normalizedTitle)
+      .maybeSingle();
+
+    let requiresReview = false;
+    let reviewReason: string | null = null;
+    if (existingTitle) {
+      requiresReview = true;
+      reviewReason = `Possible different version/amendment of existing law: "${existingTitle.title}". Verification pending admin review.`;
+    }
+
+    // 4. Upload original PDF to Supabase Storage
+    const storagePath = `originals/${normalizedTitle}-${Date.now()}.pdf`;
+    const { error: uploadError } = await admin.storage
+      .from("legal-documents")
+      .upload(storagePath, buffer, {
+        contentType: "application/pdf",
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.warn("[upload] Storage upload notice:", uploadError.message);
+    }
+
+    // 5. Insert document record
+    const { data: doc, error: insertError } = await admin
+      .from("legal_documents")
+      .insert({
+        title,
+        normalized_title: normalizedTitle,
+        short_title: title,
+        document_type: documentType,
+        category,
+        jurisdiction_level: jurisdictionLevel,
+        province,
+        year,
+        source_authority: sourceAuthority,
+        official_source_url: officialSourceUrl,
+        storage_path: storagePath,
+        file_hash: fileHash,
+        version_label: versionLabel,
+        verification_status: requiresReview ? "needs_review" : "pending",
+        processing_status: "extracting",
+        requires_review: requiresReview,
+        created_by: (await getAuthState()).user?.id,
+        metadata: {
+          original_filename: file.name,
+          file_size_bytes: buffer.length,
+          review_reason: reviewReason,
+          conflicting_document_id: existingTitle?.id ?? null,
+        },
+      })
+      .select("id")
+      .single();
+
+    if (insertError || !doc) {
+      return { ok: false, error: `Database insert failed: ${insertError?.message}` };
+    }
+
+    // 6. Text extraction
+    let pages: Awaited<ReturnType<typeof extractPdfFromBuffer>>["pages"] = [];
+    try {
+      const extraction = await extractPdfFromBuffer(new Uint8Array(buffer));
+      pages = extraction.pages;
+    } catch (extractErr) {
+      await admin
+        .from("legal_documents")
+        .update({
+          processing_status: "failed",
+          requires_review: true,
+          metadata: {
+            error_message: `Extraction error: ${extractErr instanceof Error ? extractErr.message : String(extractErr)}`,
+          },
+        })
+        .eq("id", doc.id);
+
+      return {
+        ok: true,
+        documentId: doc.id,
+        warning: "Document uploaded but text extraction failed (may require OCR). Marked as Needs Review.",
+      };
+    }
+
+    if (!pages || pages.length === 0) {
+      await admin
+        .from("legal_documents")
+        .update({
+          processing_status: "failed",
+          requires_review: true,
+          metadata: {
+            error_message: "Text extraction failed or document may require OCR.",
+          },
+        })
+        .eq("id", doc.id);
+
+      return {
+        ok: true,
+        documentId: doc.id,
+        warning: "Document appears scanned or text extraction produced 0 pages. Marked as Needs Review.",
+      };
+    }
+
+    // 7. Chunk + Embed + Store
+    try {
+      await processDocumentText(admin, doc.id, pages);
+    } catch (pipelineErr) {
+      console.error("[upload/pipeline]", pipelineErr);
+      return {
+        ok: true,
+        documentId: doc.id,
+        warning: `Document saved but processing encountered an error: ${pipelineErr instanceof Error ? pipelineErr.message : String(pipelineErr)}`,
+      };
+    }
+
+    // 8. Audit log
+    await admin.from("admin_audit_logs").insert({
+      admin_id: (await getAuthState()).user?.id,
+      action: "document_uploaded",
+      entity_type: "legal_documents",
+      entity_id: doc.id,
+      metadata: {
+        title,
+        hash: fileHash,
+        requires_review: requiresReview,
+      },
+    });
+
+    revalidatePath("/admin/knowledge-base");
+    return { ok: true, documentId: doc.id };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Upload processing failed.";
+    return { ok: false, error: message };
+  }
+}

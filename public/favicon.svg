@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d2b43" />
+      <stop offset="100%" stop-color="#071a2a" />
+    </linearGradient>
+  </defs>
+  <!-- Background icon container -->
+  <rect width="64" height="64" rx="14" fill="url(#bg)" />
+  <!-- LegalEase Scales of Justice & Lettermark LE -->
+  <g transform="translate(10, 10)">
+    <!-- Central Pillar -->
+    <path d="M22 2 L22 34 M20 34 L24 34 M18 38 L26 38" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" />
+    <circle cx="22" cy="2" r="2.2" fill="#0fa176" />
+    <!-- Balance Beam -->
+    <path d="M8 9 L36 9" stroke="#0fa176" stroke-width="2.4" stroke-linecap="round" />
+    <!-- Left Scale strings & pan -->
+    <path d="M8 9 L4 18 M8 9 L12 18" stroke="#0fa176" stroke-width="1.4" stroke-linecap="round" opacity="0.9" />
+    <path d="M2 18 C2 23 14 23 14 18 Z" fill="#0fa176" />
+    <!-- Right Scale strings & pan -->
+    <path d="M36 9 L32 18 M36 9 L40 18" stroke="#0fa176" stroke-width="1.4" stroke-linecap="round" opacity="0.9" />
+    <path d="M30 18 C30 23 42 23 42 18 Z" fill="#0fa176" />
+    <!-- Base monogram accent -->
+    <path d="M12 38 L32 38" stroke="#0fa176" stroke-width="2.6" stroke-linecap="round" />
+  </g>
+</svg>

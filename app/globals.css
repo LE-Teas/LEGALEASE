@@ -9,16 +9,28 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-inter);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --font-heading: var(--font-merriweather);
+  --font-heading: var(--font-montserrat);
+  --font-montserrat: var(--font-montserrat);
+  --font-inter: var(--font-inter);
 
-  /* LegalEase brand palette */
+  /* LegalEase official brand palette (#0d2b43 Deep Navy, #0fa176 Emerald Green) */
   --color-navy: var(--brand-navy);
   --color-navy-dark: var(--brand-navy-dark);
   --color-navy-light: var(--brand-navy-light);
-  --color-gold: var(--brand-gold);
-  --color-gold-soft: var(--brand-gold-soft);
-  --color-teal: var(--brand-teal);
-  --color-teal-soft: var(--brand-teal-soft);
+  --color-emerald: var(--brand-emerald);
+  --color-emerald-accent: var(--brand-emerald-accent);
+  --color-emerald-soft: var(--brand-emerald-soft);
+  --color-teal: var(--brand-emerald);
+  --color-teal-hover: var(--brand-emerald-hover);
+  --color-teal-soft: var(--brand-emerald-soft);
+  --color-wordmark-legal: #0d2b43;
+  --color-wordmark-ease: #0fa176;
+  --color-brand-black: #050d15;
+  --color-brand-white: #ffffff;
+  --color-mint: #ECFDF5;
+  --color-slate: #64748B;
+  --color-gold: var(--brand-emerald);
+  --color-gold-soft: var(--brand-emerald-soft);
 
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -59,50 +71,75 @@
 }
 
 :root {
-  /* LegalEase brand tokens */
-  --brand-navy: #0f2747;
-  --brand-navy-dark: #0a1d36;
-  --brand-navy-light: #1e3a5f;
-  --brand-gold: #c59a3d;
-  --brand-gold-soft: #f5ebd8;
-  --brand-teal: #0f8b8d;
-  --brand-teal-soft: #e2f4f4;
+  /* LegalEase official brand tokens: #0d2b43 deep navy, #0fa176 emerald green, white & black options */
+  --brand-navy: #0d2b43;
+  --brand-navy-dark: #071a2a;
+  --brand-navy-light: #133959;
+  --brand-emerald: #0fa176;
+  --brand-emerald-hover: #0c8863;
+  --brand-emerald-accent: #0fa176;
+  --brand-emerald-soft: #ECFDF5;
+  --brand-black: #050d15;
+  --brand-white: #FFFFFF;
+  --brand-slate: #64748B;
+  --brand-gold: #0fa176;
+  --brand-gold-soft: #ECFDF5;
 
-  /* shadcn semantic tokens mapped to the brand */
-  --background: #f8fafc;
-  --foreground: #172033;
-  --card: #ffffff;
-  --card-foreground: #172033;
-  --popover: #ffffff;
-  --popover-foreground: #172033;
-  --primary: #0f2747;
-  --primary-foreground: #ffffff;
-  --secondary: #eef2f8;
-  --secondary-foreground: #0f2747;
-  --muted: #f1f5f9;
-  --muted-foreground: #5b6b84;
-  --accent: #eef2f8;
-  --accent-foreground: #0f2747;
-  --destructive: #c2413a;
-  --border: #e2e8f0;
-  --input: #cbd5e1;
-  --ring: #0f2747;
+  /* shadcn semantic tokens mapped to official brand */
+  --background: #FFFFFF;
+  --foreground: #0d2b43;
+  --card: #FFFFFF;
+  --card-foreground: #0d2b43;
+  --popover: #FFFFFF;
+  --popover-foreground: #0d2b43;
+  --primary: #0d2b43;
+  --primary-foreground: #FFFFFF;
+  --secondary: #ECFDF5;
+  --secondary-foreground: #0d2b43;
+  --muted: #F8FAFC;
+  --muted-foreground: #64748B;
+  --accent: #ECFDF5;
+  --accent-foreground: #0fa176;
+  --destructive: #E11D48;
+  --border: #E2E8F0;
+  --input: #CBD5E1;
+  --ring: #0fa176;
   --radius: 0.625rem;
 
-  --chart-1: #0f2747;
-  --chart-2: #c59a3d;
-  --chart-3: #0f8b8d;
-  --chart-4: #1e3a5f;
-  --chart-5: #e7c069;
+  --chart-1: #0d2b43;
+  --chart-2: #0fa176;
+  --chart-3: #133959;
+  --chart-4: #071a2a;
+  --chart-5: #64748B;
 
-  --sidebar: #f8fafc;
-  --sidebar-foreground: #172033;
-  --sidebar-primary: #0f2747;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eef2f8;
-  --sidebar-accent-foreground: #0f2747;
-  --sidebar-border: #e2e8f0;
-  --sidebar-ring: #0f2747;
+  --sidebar: #F8FAFC;
+  --sidebar-foreground: #0d2b43;
+  --sidebar-primary: #0d2b43;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #ECFDF5;
+  --sidebar-accent-foreground: #0fa176;
+  --sidebar-border: #E2E8F0;
+  --sidebar-ring: #0fa176;
+}
+
+.dark {
+  --background: #050d15;
+  --foreground: #F8FAFC;
+  --card: #081a29;
+  --card-foreground: #F8FAFC;
+  --popover: #081a29;
+  --popover-foreground: #F8FAFC;
+  --primary: #0fa176;
+  --primary-foreground: #FFFFFF;
+  --secondary: #0d2b43;
+  --secondary-foreground: #F8FAFC;
+  --muted: #0d2b43;
+  --muted-foreground: #94A3B8;
+  --accent: #0d2b43;
+  --accent-foreground: #0fa176;
+  --border: #133959;
+  --input: #133959;
+  --ring: #0fa176;
 }
 
 @layer base {
@@ -116,8 +153,8 @@
     @apply bg-background text-foreground antialiased;
   }
   ::selection {
-    background: var(--brand-gold);
-    color: var(--brand-navy-dark);
+    background: var(--brand-emerald);
+    color: #FFFFFF;
   }
 }
 

@@ -16,6 +16,23 @@ export interface UiSource {
   similarity: number | null;
 }
 
+export interface UiRecommendedLawyer {
+  id: string;
+  fullName: string;
+  professionalTitle: string;
+  primarySpecialization: string;
+  specializations: string[];
+  city: string;
+  area: string | null;
+  yearsOfExperience: number;
+  consultationFee: number;
+  rating: number;
+  totalReviews: number;
+  avatarUrl: string | null;
+  whyRecommended: string;
+  compositeScore: number;
+}
+
 export interface UiStructuredResponse {
   summary?: string;
   legal_category?: string;
@@ -26,6 +43,7 @@ export interface UiStructuredResponse {
   mode?: "answer" | "insufficient";
   citations?: Array<Record<string, unknown>>;
   sources?: UiSource[];
+  recommended_lawyers?: UiRecommendedLawyer[];
   standalone_question?: string;
   retrieved_count?: number;
   retrieved_categories?: string[];
@@ -39,8 +57,9 @@ export interface UiMessage {
   content: string;
   structured_response?: UiStructuredResponse | null;
   sources?: UiSource[] | null;
+  recommended_lawyers?: UiRecommendedLawyer[] | null;
   created_at?: string | null;
-  status?: "pending" | "done" | "error";
+  status?: "pending" | "streaming" | "done" | "error";
   error?: string | null;
 }
 

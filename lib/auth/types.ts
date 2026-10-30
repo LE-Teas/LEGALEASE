@@ -17,6 +17,7 @@ export interface Profile {
   phone: string | null;
   city: string | null;
   avatar_url: string | null;
+  is_active?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -30,5 +31,5 @@ export function isRole(value: unknown): value is Role {
 export const DASHBOARD_PATH: Record<Role, string> = {
   citizen: "/citizen/dashboard",
   lawyer: "/lawyer/dashboard",
-  admin: "/admin/knowledge-base",
+  admin: "/admin",
 };

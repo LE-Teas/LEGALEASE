@@ -24,8 +24,8 @@ export function LawyerCard({ lawyer }: { lawyer: Lawyer }) {
     <Card className="group transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-navy/5">
       <CardHeader className="flex-row items-start justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Avatar size="lg" className="bg-gradient-to-br from-navy to-teal">
-            <AvatarFallback className="bg-transparent font-heading text-sm font-bold text-white">
+          <Avatar size="lg" className="bg-navy">
+            <AvatarFallback className="bg-navy font-heading text-sm font-semibold text-white">
               {initials(lawyer.name)}
             </AvatarFallback>
           </Avatar>

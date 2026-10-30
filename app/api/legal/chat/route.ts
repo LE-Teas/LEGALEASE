@@ -127,6 +127,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   try {
 
+    const recommendedLawyers = answer.recommendedLawyers || [];
     const structuredResponse = {
       summary: answer.summary,
       legal_category: answer.legalCategory,
@@ -137,6 +138,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       mode: answer.mode,
       citations: answer.citations,
       sources: answer.sources,
+      recommended_lawyers: recommendedLawyers,
       standalone_question: answer.standaloneQuestion,
       retrieved_count: answer.retrieved.count,
       retrieved_categories: answer.retrieved.categories,
@@ -165,6 +167,22 @@ export async function POST(request: Request): Promise<NextResponse> {
       .update({ updated_at: new Date().toISOString() })
       .eq("id", conversationId);
 
+    // Privacy-safe impression logging for recommendations
+    if (recommendedLawyers.length > 0) {
+      try {
+        const events = recommendedLawyers.map((l) => ({
+          event_type: "impression",
+          lawyer_id: l.id,
+          legal_category: answer.legalCategory,
+          recommendation_score: l.compositeScore,
+          user_id: user.id,
+        }));
+        await supabase.from("ai_recommendation_events").insert(events);
+      } catch {
+        /* non-fatal */
+      }
+    }
+
     return NextResponse.json({
       conversation_id: conversationId,
       assistant_message: {
@@ -172,6 +190,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         content: assistantMessage.content,
         structured_response: structuredResponse,
         sources: answer.sources,
+        recommended_lawyers: recommendedLawyers,
         created_at: assistantMessage.created_at,
       },
     });

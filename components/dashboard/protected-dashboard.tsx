@@ -87,7 +87,7 @@ export async function ProtectedDashboard({
       <Card className="mt-8 overflow-hidden">
         <CardHeader className="border-b border-border/70 bg-navy/[0.03]">
           <div className="flex items-center gap-3">
-            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-navy text-gold">
+            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-navy text-white">
               <Construction className="size-5" />
             </span>
             <div>

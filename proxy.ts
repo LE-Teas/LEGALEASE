@@ -3,7 +3,7 @@ import { createSsrProxyClient } from "@/lib/supabase/proxy";
 import {
   dashboardPathForRole,
   getRoleForUser,
-} from "@/lib/auth/profile";
+} from "@/lib/auth/roles";
 
 export const config = {
   matcher: ["/citizen/:path*", "/lawyer/:path*", "/admin/:path*"],

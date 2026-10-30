@@ -51,6 +51,9 @@ function validateSignupFields(role: Role, formData: FormData): AuthActionResult 
   if (!isValidEmail(email)) {
     return { ok: false, error: "Please enter a valid email address." };
   }
+  if (!isValidPhone(phone)) {
+    return { ok: false, error: "Please enter a valid phone number (e.g. +92 300 1234567)." };
+  }
   if (!isValidPassword(password)) {
     return {
       ok: false,
@@ -59,9 +62,6 @@ function validateSignupFields(role: Role, formData: FormData): AuthActionResult 
   }
 
   if (role === "lawyer") {
-    if (!isValidPhone(phone)) {
-      return { ok: false, error: "Please enter a valid phone number." };
-    }
     if (!isValidCity(city)) {
       return { ok: false, error: "Please enter your city." };
     }

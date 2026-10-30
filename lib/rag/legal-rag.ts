@@ -30,6 +30,8 @@ import {
   buildSources,
   validateCitations,
 } from "@/lib/rag/citations";
+import { extractLawyerIntent } from "@/lib/lawyers/lawyer-intent";
+import { recommendLawyers, type RecommendedLawyer } from "@/lib/lawyers/recommend-lawyers";
 
 export interface LegalRagContext {
   supabase: SupabaseClient;
@@ -61,6 +63,7 @@ export interface RagAnswer {
   needsLawyer: boolean;
   insufficientContext: boolean;
   llmModel: string;
+  recommendedLawyers?: import("@/lib/lawyers/recommend-lawyers").RecommendedLawyer[];
 }
 
 export class RagPipelineError extends Error {
@@ -132,11 +135,20 @@ function validateAnswer(raw: Record<string, unknown>): LegalAnswer {
   return result.data;
 }
 
-function insufficientAnswer(input: {
+async function insufficientAnswer(input: {
   question: string;
   standaloneQuestion: string;
   classification: ReturnType<typeof classifyQuery>;
-}): RagAnswer {
+}): Promise<RagAnswer> {
+  let recommendedLawyers: RecommendedLawyer[] = [];
+  try {
+    const intent = await extractLawyerIntent(input.standaloneQuestion, input.classification);
+    intent.needs_lawyer = true;
+    recommendedLawyers = await recommendLawyers(intent);
+  } catch {
+    /* non-fatal */
+  }
+
   return {
     mode: "insufficient",
     standaloneQuestion: input.standaloneQuestion,
@@ -155,6 +167,7 @@ function insufficientAnswer(input: {
     needsLawyer: true,
     insufficientContext: true,
     llmModel: "none",
+    recommendedLawyers,
   };
 }
 
@@ -224,7 +237,7 @@ export async function askLegalQuestion(context: LegalRagContext): Promise<RagAns
   const chunks = dedupeChunks(retrieved, 4);
 
   if (chunks.length === 0) {
-    return insufficientAnswer({ question, standaloneQuestion, classification });
+    return await insufficientAnswer({ question, standaloneQuestion, classification });
   }
 
   // 5 — grounded generation.
@@ -265,6 +278,21 @@ export async function askLegalQuestion(context: LegalRagContext): Promise<RagAns
   const categories = [...new Set(chunks.map((c) => c.category))];
   const documents = [...new Set(chunks.map((c) => c.documentTitle))];
 
+  // 7 — Lawyer recommendations (only if legal representation is appropriate)
+  let recommendedLawyers: RecommendedLawyer[] = [];
+  try {
+    const intent = await extractLawyerIntent(standaloneQuestion, classification);
+    if (intent.needs_lawyer || answer.needs_lawyer) {
+      intent.needs_lawyer = true;
+      if (answer.legal_category && answer.legal_category !== "other") {
+        intent.legal_category = answer.legal_category;
+      }
+      recommendedLawyers = await recommendLawyers(intent);
+    }
+  } catch (err) {
+    console.warn("[legal-rag] Lawyer recommendation skipped:", err);
+  }
+
   return {
     mode: "answer",
     standaloneQuestion,
@@ -285,5 +313,6 @@ export async function askLegalQuestion(context: LegalRagContext): Promise<RagAns
     needsLawyer: answer.needs_lawyer,
     insufficientContext: answer.insufficient_context,
     llmModel,
+    recommendedLawyers,
   };
 }

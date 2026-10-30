@@ -23,3 +23,5 @@ export function isAdminConfigured(): boolean {
     Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY) && Boolean(getSupabaseEnv())
   );
 }
+
+export const getAdminSupabase = createAdminClient;
