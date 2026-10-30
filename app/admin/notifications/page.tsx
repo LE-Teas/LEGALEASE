@@ -30,11 +30,21 @@ interface PageProps {
   searchParams: Promise<{ type?: string; search?: string }>;
 }
 
+interface AdminNotificationRow {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  read_at: string | null;
+  created_at: string;
+  recipient?: { full_name: string | null; email: string | null; role: string | null } | null;
+}
+
 export default async function AdminNotificationsPage({ searchParams }: PageProps) {
   const { type, search } = await searchParams;
   const supabase = await createClient();
 
-  let notifications: any[] = [];
+  let notifications: AdminNotificationRow[] = [];
   let totalCount = 0;
   let readCount = 0;
   let broadcastCount = 0;
@@ -61,7 +71,7 @@ export default async function AdminNotificationsPage({ searchParams }: PageProps
 
     const { data } = await query;
     if (data) {
-      notifications = data;
+      notifications = data as unknown as AdminNotificationRow[];
       totalCount = data.length;
       data.forEach((n) => {
         if (n.read_at) readCount++;

@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { resources as defaultResources } from "@/lib/data/resources";
 import { faqs as defaultFaqs } from "@/lib/data/faqs";
+import type { LegalResourceItem } from "@/lib/types/legal";
 
 export const metadata: Metadata = {
   title: "Legal Resources & Content Management | LegalEase Admin",
@@ -36,7 +37,7 @@ export default async function AdminResourcesPage({ searchParams }: PageProps) {
   const activeTab = tab || "guides";
   const supabase = await createClient();
 
-  let dbResources: any[] = [];
+  let dbResources: LegalResourceItem[] = [];
 
   if (supabase) {
     const { data } = await supabase
@@ -45,7 +46,7 @@ export default async function AdminResourcesPage({ searchParams }: PageProps) {
       .order("created_at", { ascending: false });
 
     if (data && data.length > 0) {
-      dbResources = data;
+      dbResources = data as unknown as LegalResourceItem[];
     }
   }
 

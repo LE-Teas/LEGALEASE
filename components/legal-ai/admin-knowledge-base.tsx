@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   AlertCircle,
   CheckCircle2,
@@ -112,10 +113,10 @@ export function AdminKnowledgeBase({
 
         <div className="flex items-center gap-2">
           <Button asChild className="bg-[#0CA275] hover:bg-[#098862] text-white text-xs gap-1.5 shadow-xs">
-            <a href="/admin/knowledge-base/upload">
+            <Link href="/admin/knowledge-base/upload">
               <FileText className="size-3.5" />
               Upload Legal Document
-            </a>
+            </Link>
           </Button>
         </div>
       </div>

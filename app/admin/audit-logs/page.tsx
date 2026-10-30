@@ -19,11 +19,21 @@ interface PageProps {
   searchParams: Promise<{ action?: string; search?: string }>;
 }
 
+interface AuditLogRow {
+  id: string;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  changes: Record<string, unknown> | null;
+  created_at: string;
+  admin?: { full_name: string | null; email: string | null } | null;
+}
+
 export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
   const { action, search } = await searchParams;
   const supabase = await createClient();
 
-  let logs: any[] = [];
+  let logs: AuditLogRow[] = [];
 
   if (supabase) {
     let query = supabase
@@ -46,7 +56,7 @@ export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
 
     const { data } = await query;
     if (data) {
-      logs = data;
+      logs = data as unknown as AuditLogRow[];
       if (search && search.trim()) {
         const q = search.toLowerCase();
         logs = logs.filter(

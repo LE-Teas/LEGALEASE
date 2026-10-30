@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import {
   AlertCircle,
   Award,
@@ -32,9 +33,41 @@ import {
   updateAiRecommendationSettingsAction,
 } from "@/app/actions/admin-ai-router";
 
+interface ModelCapabilities {
+  supports_structured_output?: boolean;
+  supports_tools?: boolean;
+  supports_reasoning?: boolean;
+}
+
+interface ModelEvaluation {
+  grounding_success?: number;
+  citation_compliance?: number;
+  structured_output_success?: number;
+  latency_ms?: number;
+}
+
+export type RoutingMode = "auto_free" | "openrouter_free" | "manual";
+
+/** A row from `openrouter_model_registry` as rendered by this component. */
+export interface ModelRegistryRow {
+  id: string;
+  model_id: string;
+  model_name: string;
+  is_free: boolean;
+  context_length: number;
+  capabilities: ModelCapabilities | null;
+  health_status: string;
+  latency_ms: number | null;
+  rank_score: number | null;
+  excluded_by_admin: boolean;
+  last_discovered_at: string;
+  last_evaluated_at?: string | null;
+  internal_evaluation?: ModelEvaluation | null;
+}
+
 interface ModelRouterSettingsProps {
   initialRoutingConfig: {
-    routing_mode: "auto_free" | "openrouter_free" | "manual";
+    routing_mode: RoutingMode;
     primary_model: string;
     fallback_model_1?: string | null;
     fallback_model_2?: string | null;
@@ -42,21 +75,7 @@ interface ModelRouterSettingsProps {
     model_cache_ttl_hours: number;
     last_refreshed_at?: string | null;
   };
-  initialModels: Array<{
-    id: string;
-    model_id: string;
-    model_name: string;
-    is_free: boolean;
-    context_length: number;
-    capabilities: any;
-    health_status: string;
-    latency_ms: number | null;
-    rank_score: number | null;
-    excluded_by_admin: boolean;
-    last_discovered_at: string;
-    last_evaluated_at?: string | null;
-    internal_evaluation?: any;
-  }>;
+  initialModels: ModelRegistryRow[];
   initialRecommendationSettings: {
     enabled: boolean;
     max_recommendations: number;
@@ -117,15 +136,35 @@ export function ModelRouterSettingsClient({
     try {
       const res = await refreshOpenRouterModelsAction();
       if (res.success && res.models) {
-        setModels(res.models as any);
+        setModels(
+          res.models.map((model) => ({
+            id: model.id,
+            model_id: model.model_id,
+            model_name: model.model_name,
+            is_free: model.is_free,
+            context_length: model.context_length,
+            capabilities: {
+              supports_structured_output: model.supports_structured_output,
+              supports_tools: model.supports_tools,
+              supports_reasoning: model.supports_reasoning,
+            },
+            health_status: model.health_status,
+            latency_ms: model.latency_ms,
+            rank_score: model.rank_score,
+            excluded_by_admin: model.excluded_by_admin,
+            last_discovered_at: model.last_discovered_at,
+            last_evaluated_at: model.last_evaluated_at,
+            internal_evaluation: model.internal_evaluation ?? null,
+          }))
+        );
         if (res.models.length > 0 && routingMode === "auto_free") {
           setPrimaryModel(res.models[0].model_id);
           if (res.models[1]) setFallback1(res.models[1].model_id);
           if (res.models[2]) setFallback2(res.models[2].model_id);
         }
       }
-    } catch (err: any) {
-      alert(err?.message || "Failed to refresh models");
+    } catch (err) {
+      alert(getErrorMessage(err) || "Failed to refresh models");
     } finally {
       setRefreshingCatalog(false);
     }
@@ -154,8 +193,8 @@ export function ModelRouterSettingsClient({
             : m
         )
       );
-    } catch (err: any) {
-      alert(err?.message || "Evaluation failed");
+    } catch (err) {
+      alert(getErrorMessage(err) || "Evaluation failed");
     } finally {
       setEvaluatingModelId(null);
     }
@@ -169,8 +208,8 @@ export function ModelRouterSettingsClient({
       setModels((prev) =>
         prev.map((m) => (m.model_id === modelId ? { ...m, excluded_by_admin: next } : m))
       );
-    } catch (err: any) {
-      alert(err?.message || "Failed to toggle exclusion");
+    } catch (err) {
+      alert(getErrorMessage(err) || "Failed to toggle exclusion");
     }
   };
 
@@ -192,8 +231,8 @@ export function ModelRouterSettingsClient({
       });
       setRouterSaved(true);
       setTimeout(() => setRouterSaved(false), 3000);
-    } catch (err: any) {
-      setRouterError(err?.message || "Failed to save router config");
+    } catch (err) {
+      setRouterError(getErrorMessage(err) || "Failed to save router config");
     } finally {
       setRouterSaving(false);
     }
@@ -225,8 +264,8 @@ export function ModelRouterSettingsClient({
       });
       setRecSaved(true);
       setTimeout(() => setRecSaved(false), 3000);
-    } catch (err: any) {
-      setRecError(err?.message || "Failed to save recommendation settings");
+    } catch (err) {
+      setRecError(getErrorMessage(err) || "Failed to save recommendation settings");
     } finally {
       setRecSaving(false);
     }
@@ -299,7 +338,7 @@ export function ModelRouterSettingsClient({
                 <select
                   id="routingMode"
                   value={routingMode}
-                  onChange={(e) => setRoutingMode(e.target.value as any)}
+                  onChange={(e) => setRoutingMode(e.target.value as RoutingMode)}
                   className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-navy"
                 >
                   <option value="auto_free">Automatic LegalEase Free Router (Recommended)</option>

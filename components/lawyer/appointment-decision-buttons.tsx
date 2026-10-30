@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -94,8 +95,8 @@ export function AppointmentDecisionButtons({
       }
       setCompleteDialogOpen(false);
       router.refresh();
-    } catch (err: any) {
-      setCompleteError(err?.message || "Error completing appointment");
+    } catch (err) {
+      setCompleteError(getErrorMessage(err) || "Error completing appointment");
     } finally {
       setLoading(null);
     }
@@ -128,8 +129,8 @@ export function AppointmentDecisionButtons({
       }
       setDialogOpen(false);
       router.refresh();
-    } catch (err: any) {
-      setError(err?.message || "Error updating appointment");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Error updating appointment");
     } finally {
       setLoading(null);
     }

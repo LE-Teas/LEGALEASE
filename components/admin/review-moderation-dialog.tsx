@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import { Star, Eye, EyeOff, ShieldAlert, CheckCircle2, AlertTriangle } from "lucide-react";
 import {
   Dialog,
@@ -20,18 +21,18 @@ import { moderateReviewAction } from "@/app/actions/admin";
 interface ReviewRecord {
   id: string;
   rating: number;
-  comment: string;
+  comment: string | null;
   is_visible: boolean;
   moderated_at?: string | null;
   created_at: string;
-  citizen: {
-    full_name: string;
+  citizen?: {
+    full_name: string | null;
     email?: string | null;
-  };
-  lawyer: {
-    full_name: string;
+  } | null;
+  lawyer?: {
+    full_name: string | null;
     city?: string | null;
-  };
+  } | null;
 }
 
 export function ReviewModerationDialog({ review }: { review: ReviewRecord }) {
@@ -52,8 +53,8 @@ export function ReviewModerationDialog({ review }: { review: ReviewRecord }) {
       await moderateReviewAction(review.id, targetVisibility, reason);
       setOpen(false);
       setReason("");
-    } catch (err: any) {
-      setError(err?.message || "Failed to update review moderation status.");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Failed to update review moderation status.");
     } finally {
       setLoading(false);
     }

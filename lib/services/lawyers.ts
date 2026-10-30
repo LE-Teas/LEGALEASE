@@ -1,6 +1,17 @@
 import { createClient } from "@/lib/supabase/server";
 import type { LawyerWithProfile, Specialization } from "@/lib/types/legal";
 
+interface LawyerProfileJoin {
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  avatar_url: string | null;
+}
+
+type LawyerJoinRow = Omit<LawyerWithProfile, "full_name" | "email" | "phone" | "avatar_url"> & {
+  profiles?: LawyerProfileJoin | null;
+};
+
 export interface SearchLawyersParams {
   query?: string;
   specialization?: string;
@@ -53,7 +64,7 @@ export async function searchLawyers(
     );
 
     if (!nearbyError && nearbyData) {
-      let results: LawyerWithProfile[] = nearbyData.map((row: any) => ({
+      let results: LawyerWithProfile[] = (nearbyData as unknown as LawyerWithProfile[]).map((row) => ({
         ...row,
         email: "",
         phone: null,
@@ -140,7 +151,7 @@ export async function searchLawyers(
     return [];
   }
 
-  let results: LawyerWithProfile[] = data.map((item: any) => ({
+  let results: LawyerWithProfile[] = (data as unknown as LawyerJoinRow[]).map((item) => ({
     ...item,
     full_name: item.profiles?.full_name || "Lawyer",
     email: item.profiles?.email || "",
@@ -216,7 +227,7 @@ export async function getLawyersFromDb() {
     return [];
   }
 
-  return data.map((item: any) =>
+  return (data as unknown as LawyerJoinRow[]).map((item) =>
     mapDbLawyerToLawyer({
       ...item,
       full_name: item.profiles?.full_name || "Lawyer",

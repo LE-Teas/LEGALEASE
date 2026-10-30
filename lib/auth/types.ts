@@ -16,6 +16,7 @@ export interface Profile {
   email: string;
   phone: string | null;
   city: string | null;
+  area?: string | null;
   avatar_url: string | null;
   is_active?: boolean;
   created_at: string;

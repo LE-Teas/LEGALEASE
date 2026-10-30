@@ -20,6 +20,18 @@ interface PageProps {
   searchParams: Promise<{ role?: string; search?: string; status?: string; page?: string }>;
 }
 
+interface AdminUserRow {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  role: "citizen" | "lawyer" | "admin";
+  city: string | null;
+  area: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
 export default async function AdminUsersPage({ searchParams }: PageProps) {
   const { role, search, status, page } = await searchParams;
   const supabase = await createClient();
@@ -27,7 +39,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
   const currentPage = Math.max(Number(page) || 1, 1);
   const pageSize = 15;
 
-  let users: any[] = [];
+  let users: AdminUserRow[] = [];
   let totalMatchingUsers = 0;
 
   const roleCounts = {
@@ -78,7 +90,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
     const toIndex = fromIndex + pageSize - 1;
 
     const { data, count } = await query.range(fromIndex, toIndex);
-    users = data || [];
+    users = (data ?? []) as unknown as AdminUserRow[];
     totalMatchingUsers = count || 0;
   }
 

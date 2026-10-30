@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getErrorMessage } from "@/lib/errors";
 import { getAvailableSlotsForDate } from "@/lib/services/availability";
 
 export async function GET(
@@ -18,7 +19,7 @@ export async function GET(
 
     const slots = await getAvailableSlotsForDate(id, dateStr, durationMinutes);
     return NextResponse.json({ slots });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message, slots: [] }, { status: 500 });
+  } catch (err) {
+    return NextResponse.json({ error: getErrorMessage(err), slots: [] }, { status: 500 });
   }
 }

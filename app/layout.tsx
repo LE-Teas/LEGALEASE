@@ -14,8 +14,11 @@ const montserrat = Montserrat({
   weight: ["500", "600", "700"],
 });
 
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://legalease.pk";
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://legalease.pk"),
+  metadataBase: new URL(siteUrl),
   title: {
     default: "LegalEase — Understand the law. Find the right lawyer.",
     template: "%s — LegalEase",
@@ -61,57 +64,8 @@ export default function RootLayout({
       lang="en"
       data-scroll-behavior="smooth"
       className={`${inter.variable} ${montserrat.variable} h-full antialiased`}
-      suppressHydrationWarning
     >
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  var origSet = Element.prototype.setAttribute;
-                  Element.prototype.setAttribute = function(name, val) {
-                    if (typeof name === 'string' && (name === 'bis_skin_checked' || name.indexOf('bis_') === 0)) return;
-                    return origSet.apply(this, arguments);
-                  };
-                  var origSetNode = Element.prototype.setAttributeNode;
-                  Element.prototype.setAttributeNode = function(attr) {
-                    if (attr && typeof attr.name === 'string' && (attr.name === 'bis_skin_checked' || attr.name.indexOf('bis_') === 0)) return attr;
-                    return origSetNode.apply(this, arguments);
-                  };
-                  if (typeof document !== 'undefined') {
-                    var cleanBis = function() {
-                      var els = document.querySelectorAll('[bis_skin_checked]');
-                      for (var i = 0; i < els.length; i++) {
-                        els[i].removeAttribute('bis_skin_checked');
-                      }
-                    };
-                    cleanBis();
-                    if (typeof MutationObserver !== 'undefined') {
-                      var observer = new MutationObserver(function(mutations) {
-                        for (var i = 0; i < mutations.length; i++) {
-                          var m = mutations[i];
-                          if (m.type === 'attributes' && m.attributeName && m.attributeName.indexOf('bis_') === 0) {
-                            m.target.removeAttribute(m.attributeName);
-                          }
-                        }
-                      });
-                      observer.observe(document.documentElement, {
-                        attributes: true,
-                        subtree: true,
-                        attributeFilter: ['bis_skin_checked', 'bis_register']
-                      });
-                    }
-                  }
-                } catch(e) {}
-              })();
-            `,
-          }}
-        />
-      </head>
-      <body className="flex min-h-full flex-col font-sans" suppressHydrationWarning>
-        {children}
-      </body>
+      <body className="flex min-h-full flex-col font-sans">{children}</body>
     </html>
   );
 }

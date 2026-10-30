@@ -32,6 +32,23 @@ export interface RecommendedLawyer {
   whyRecommended: string;
 }
 
+interface LawyerCandidateRow {
+  id: string;
+  professional_title: string | null;
+  primary_specialization: string | null;
+  specializations: string[] | null;
+  years_of_experience: number | null;
+  consultation_fee: number | null;
+  rating: number | null;
+  total_reviews: number | null;
+  city: string | null;
+  area: string | null;
+  bio: string | null;
+  verification_status: string;
+  is_published: boolean;
+  profiles?: { full_name: string | null; avatar_url: string | null } | null;
+}
+
 export interface RecommendationWeights {
   enabled: boolean;
   maxRecommendations: number;
@@ -129,7 +146,7 @@ function calculateFeeScore(fee: number, budget?: number | null): number {
 /**
  * Relevance score matching intent categories and keywords to lawyer profile.
  */
-function calculateRelevanceScore(lawyer: any, intent: LawyerIntent): { score: number; matchReasons: string[] } {
+function calculateRelevanceScore(lawyer: LawyerCandidateRow, intent: LawyerIntent): { score: number; matchReasons: string[] } {
   let score = 0;
   const matchReasons: string[] = [];
 
@@ -186,7 +203,7 @@ function calculateRelevanceScore(lawyer: any, intent: LawyerIntent): { score: nu
  * Generates an explainable "Why Recommended" badge summary.
  */
 function buildWhyRecommended(
-  lawyer: any,
+  lawyer: LawyerCandidateRow,
   matchReasons: string[],
   cityMatch: boolean
 ): string {
@@ -243,7 +260,7 @@ export async function recommendLawyers(intent: LawyerIntent): Promise<Recommende
   const candidates: RecommendedLawyer[] = [];
   const intentCity = (intent.jurisdiction?.city || "Karachi").toLowerCase();
 
-  for (const item of lawyers) {
+  for (const item of lawyers as unknown as LawyerCandidateRow[]) {
     const { score: relevance, matchReasons } = calculateRelevanceScore(item, intent);
 
     // Filter out candidates below the minimum relevance threshold
@@ -269,7 +286,7 @@ export async function recommendLawyers(intent: LawyerIntent): Promise<Recommende
         100
     );
 
-    const profile = (item as any).profiles || {};
+    const profile = item.profiles ?? { full_name: null, avatar_url: null };
     const whyRecommended = buildWhyRecommended(item, matchReasons, cityMatch);
 
     candidates.push({

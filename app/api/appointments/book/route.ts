@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getErrorMessage } from "@/lib/errors";
 import { getAuthState } from "@/lib/auth/profile";
 import { createAppointment } from "@/lib/services/appointments";
 
@@ -82,7 +83,7 @@ export async function POST(request: Request) {
       appointment_id: apptId,
       appointment: result.appointment || { id: apptId },
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return NextResponse.json({ error: getErrorMessage(err) }, { status: 500 });
   }
 }

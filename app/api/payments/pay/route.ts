@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getErrorMessage } from "@/lib/errors";
 import { getAuthState } from "@/lib/auth/profile";
 import { processAppointmentPayment } from "@/lib/services/payments";
 
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
       success: true,
       payment: result.payment,
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Payment processing failed" }, { status: 500 });
+  } catch (err) {
+    return NextResponse.json({ error: getErrorMessage(err) || "Payment processing failed" }, { status: 500 });
   }
 }

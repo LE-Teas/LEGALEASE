@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import { useRouter } from "next/navigation";
 import { Check, Edit3, Loader2, Lock, Save } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -47,8 +48,8 @@ export function ConsultationNotesCard({
       setIsEditing(false);
       router.refresh();
       setTimeout(() => setSaved(false), 3000);
-    } catch (err: any) {
-      setError(err?.message || "Failed to save private notes");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Failed to save private notes");
     } finally {
       setSaving(false);
     }

@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { AppointmentManagementDialog } from "@/components/admin/appointment-management-dialog";
 import { formatRate } from "@/lib/data/lawyers";
+import type { Appointment } from "@/lib/types/legal";
 
 export const metadata: Metadata = {
   title: "Consultations & Bookings | LegalEase Admin",
@@ -28,6 +29,18 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
+
+type AdminAppointmentRow = Omit<
+  Appointment,
+  "citizen" | "lawyer" | "platform_fee" | "tax_amount" | "total_amount" | "lawyer_receivable"
+> & {
+  platform_fee: number | null;
+  tax_amount: number | null;
+  total_amount: number | null;
+  lawyer_receivable: number | null;
+  citizen?: { full_name: string | null; email: string | null; phone: string | null } | null;
+  lawyer?: { full_name: string | null; email: string | null; city: string | null } | null;
+};
 
 interface PageProps {
   searchParams: Promise<{
@@ -46,7 +59,7 @@ export default async function AdminAppointmentsPage({ searchParams }: PageProps)
   const currentPage = Math.max(Number(page) || 1, 1);
   const pageSize = 12;
 
-  let appointments: any[] = [];
+  let appointments: AdminAppointmentRow[] = [];
   let totalMatching = 0;
 
   const statusCounts = {
@@ -97,7 +110,7 @@ export default async function AdminAppointmentsPage({ searchParams }: PageProps)
 
     const { data, count, error } = await query.range(fromIndex, toIndex);
     if (!error && data) {
-      appointments = data;
+      appointments = data as unknown as AdminAppointmentRow[];
       if (search && search.trim()) {
         const q = search.toLowerCase();
         appointments = appointments.filter(
@@ -298,7 +311,7 @@ export default async function AdminAppointmentsPage({ searchParams }: PageProps)
                               {formatRate(a.total_amount || a.consultation_fee)}
                             </div>
                             <div className="text-[11px] text-[#0CA275]">
-                              Cut: {formatRate(a.platform_fee)}
+                              Cut: {formatRate(a.platform_fee ?? 0)}
                             </div>
                           </>
                         )}

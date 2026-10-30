@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getErrorMessage } from "@/lib/errors";
 import { getAuthState } from "@/lib/auth/profile";
 import {
   saveCitizenDocument,
@@ -13,8 +14,8 @@ export async function GET() {
 
     const documents = await getCitizenDocuments(user.id);
     return NextResponse.json({ documents });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return NextResponse.json({ error: getErrorMessage(err) }, { status: 500 });
   }
 }
 
@@ -45,8 +46,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true, document: result.document });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return NextResponse.json({ error: getErrorMessage(err) }, { status: 500 });
   }
 }
 
@@ -61,7 +62,7 @@ export async function DELETE(request: Request) {
 
     const result = await deleteCitizenDocument(id, user.id);
     return NextResponse.json({ success: result.success });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return NextResponse.json({ error: getErrorMessage(err) }, { status: 500 });
   }
 }

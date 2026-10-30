@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import { useRouter } from "next/navigation";
 import { Loader2, Star, Trash2 } from "lucide-react";
 import {
@@ -54,8 +55,8 @@ export function AppointmentActions({ appointment, hasReview = false }: Appointme
       if (!res.ok) throw new Error(data.error || "Failed to cancel");
       setCancelOpen(false);
       router.refresh();
-    } catch (err: any) {
-      setCancelError(err?.message || "Failed to cancel consultation");
+    } catch (err) {
+      setCancelError(getErrorMessage(err) || "Failed to cancel consultation");
     } finally {
       setCancelling(false);
     }
@@ -84,8 +85,8 @@ export function AppointmentActions({ appointment, hasReview = false }: Appointme
       if (!res.ok) throw new Error(data.error || "Failed to submit review");
       setReviewOpen(false);
       router.refresh();
-    } catch (err: any) {
-      setReviewError(err?.message || "Failed to submit review");
+    } catch (err) {
+      setReviewError(getErrorMessage(err) || "Failed to submit review");
     } finally {
       setSubmittingReview(false);
     }

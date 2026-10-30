@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -81,8 +82,8 @@ export function LawyerVerificationForm({ lawyer, verification }: VerificationFor
 
       if (isLicense) setLicenseDocPath(filePath);
       else setAdditionalDocPath(filePath);
-    } catch (err: any) {
-      setError(err?.message || `Failed to upload ${type} document.`);
+    } catch (err) {
+      setError(getErrorMessage(err) || `Failed to upload ${type} document.`);
     } finally {
       if (isLicense) setUploadingLicense(false);
       else setUploadingAdditional(false);
@@ -117,8 +118,8 @@ export function LawyerVerificationForm({ lawyer, verification }: VerificationFor
 
       setSuccess(true);
       router.refresh();
-    } catch (err: any) {
-      setError(err?.message || "Failed to submit verification documents.");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Failed to submit verification documents.");
     } finally {
       setSubmitting(false);
     }

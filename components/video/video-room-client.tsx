@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -61,8 +62,8 @@ export function VideoRoomClient({
         setDurationMinutes(data.durationMinutes);
       }
       setPhase("in-call");
-    } catch (err: any) {
-      setError(err.message || "Failed to connect");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Failed to connect");
     } finally {
       setLoading(false);
     }

@@ -65,7 +65,7 @@ export async function createAppointment(
     return {
       success: true,
       appointmentId,
-      appointment: (createdAppt as unknown as Appointment) || ({ id: appointmentId } as any),
+      appointment: (createdAppt as unknown as Appointment) || ({ id: appointmentId } as unknown as Appointment),
     };
   }
 

@@ -70,7 +70,7 @@ interface DocumentDetailProps {
     is_repealed: boolean;
     requires_review: boolean;
     page_count: number | null;
-    metadata: Record<string, any>;
+    metadata: Record<string, unknown>;
     created_at: string;
     updated_at: string;
     created_by_profile?: { full_name: string; email: string } | null;
@@ -270,12 +270,12 @@ export function DocumentDetailClient({
       )}
 
       {/* Warning / Conflict Alert if requires_review */}
-      {doc.requires_review && doc.metadata?.review_reason && (
+      {Boolean(doc.metadata?.review_reason) && (
         <Alert className="bg-orange-50 border-orange-200 text-orange-950">
           <ShieldAlert className="size-4 text-orange-600" />
           <AlertTitle className="text-xs font-bold">Document Requires Review</AlertTitle>
           <AlertDescription className="text-xs mt-1">
-            {doc.metadata.review_reason}
+            {String(doc.metadata.review_reason)}
           </AlertDescription>
         </Alert>
       )}

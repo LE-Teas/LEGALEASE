@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { VerificationDialog } from "@/components/admin/verification-dialog";
 import { formatRate } from "@/lib/data/lawyers";
 import { DashboardCharts, type MonthlyTrend, type VerificationBreakdown } from "@/components/admin/dashboard-charts";
+import type { VerificationStatus } from "@/lib/types/legal";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | LegalEase — Legal Help. Made Easier.",
@@ -35,6 +36,47 @@ export const dynamic = "force-dynamic";
 
 interface PageProps {
   searchParams: Promise<{ range?: string }>;
+}
+
+interface PendingLawyerRow {
+  id: string;
+  bar_council: string | null;
+  bar_license_number: string | null;
+  verification_status: VerificationStatus;
+  is_published: boolean;
+  city: string | null;
+  years_of_experience: number | null;
+  consultation_fee: number | null;
+  primary_specialization: string | null;
+  full_name: string;
+  email: string;
+  phone: string;
+  license_number: string | null;
+}
+
+interface RecentAppointmentRow {
+  id: string;
+  appointment_date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  consultation_type: string | null;
+  consultation_fee: number;
+  platform_fee: number | null;
+  total_amount: number | null;
+  payment_status: string;
+  created_at: string;
+  citizen?: { full_name: string | null } | null;
+  lawyer?: { full_name: string | null } | null;
+}
+
+interface RecentAuditRow {
+  id: string;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  created_at: string;
+  admin?: { full_name: string | null } | null;
 }
 
 export default async function AdminDashboardPage({ searchParams }: PageProps) {
@@ -58,9 +100,9 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
   let pendingLegalDocs = 0;
   let totalAiQueries = 0;
 
-  let pendingLawyers: any[] = [];
-  let recentAppointments: any[] = [];
-  let recentAuditActivity: any[] = [];
+  let pendingLawyers: PendingLawyerRow[] = [];
+  let recentAppointments: RecentAppointmentRow[] = [];
+  let recentAuditActivity: RecentAuditRow[] = [];
 
   const verificationBreakdown: VerificationBreakdown = {
     verified: 0,
@@ -119,7 +161,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
       .eq("verification_status", "pending")
       .limit(6);
 
-    pendingLawyers = (pendingData || []).map((l: any) => ({
+    pendingLawyers = ((pendingData ?? []) as unknown as Array<PendingLawyerRow & { profiles: { full_name: string | null; email: string | null; phone: string | null } | null }>).map((l) => ({
       ...l,
       full_name: l.profiles?.full_name || "Advocate",
       email: l.profiles?.email || "",
@@ -157,7 +199,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
     totalAppointments = allApptsRes.count || 0;
     pendingAppointmentsCount = pendingApptsRes.count || 0;
     completedConsultationsCount = completedApptsRes.count || 0;
-    recentAppointments = recentApptsRes.data || [];
+    recentAppointments = (recentApptsRes.data ?? []) as unknown as RecentAppointmentRow[];
 
     if (feeSumRes.data) {
       feeSumRes.data.forEach((row) => {
@@ -196,7 +238,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
       .order("created_at", { ascending: false })
       .limit(6);
 
-    recentAuditActivity = auditData || [];
+    recentAuditActivity = (auditData ?? []) as unknown as RecentAuditRow[];
 
     // 7. Aggregate monthly trends for chart (Last 6 months)
     const monthNames = ["May", "Jun", "Jul", "Aug", "Sep", "Oct"];

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getErrorMessage } from "@/lib/errors";
 import { getAuthState } from "@/lib/auth/profile";
 import { createClient } from "@/lib/supabase/server";
 
@@ -97,7 +98,7 @@ export async function GET(request: Request) {
       appointmentStatus: appt.status,
       paymentStatus: appt.payment_status,
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Timer calculation error" }, { status: 500 });
+  } catch (err) {
+    return NextResponse.json({ error: getErrorMessage(err) || "Timer calculation error" }, { status: 500 });
   }
 }

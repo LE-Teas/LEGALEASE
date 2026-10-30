@@ -30,11 +30,34 @@ import { SectionHeading } from "@/components/marketing/section-heading";
 import { searchLawyers } from "@/lib/services/lawyers";
 import { getLegalResources } from "@/lib/services/resources";
 import { formatRate } from "@/lib/data/lawyers";
+import type { LawyerWithProfile, LegalResourceItem } from "@/lib/types/legal";
+
+/** Card view models: DB rows and static fallbacks share these fields. */
+type ShowcaseResource = Pick<LegalResourceItem, "title" | "category" | "summary" | "slug"> & {
+  id?: string;
+  reading_time?: string;
+  statute?: string;
+};
+type ShowcaseLawyer = Pick<
+  LawyerWithProfile,
+  | "id"
+  | "full_name"
+  | "professional_title"
+  | "specializations"
+  | "years_of_experience"
+  | "consultation_fee"
+  | "city"
+> & {
+  area?: string | null;
+  primary_specialization?: string;
+  bar_license_number?: string | null;
+  bar_council?: string | null;
+};
 
 export const dynamic = "force-dynamic";
 
 // Fallback statutory topics if knowledge base is synchronizing
-const fallbackTopics = [
+const fallbackTopics: ShowcaseResource[] = [
   {
     title: "Tenancy & Rented Property",
     statute: "Sindh Rented Premises Ordinance, 1979",
@@ -86,7 +109,7 @@ const fallbackTopics = [
 ];
 
 // Fallback verified advocates if newly provisioned database
-const fallbackAdvocates = [
+const fallbackAdvocates: ShowcaseLawyer[] = [
   {
     id: "lawyer-1",
     full_name: "Barrister Bilal Khan",
@@ -461,7 +484,7 @@ export default async function Home() {
 
           {/* Dynamic database topics grid */}
           <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {displayResources.map((topic: any) => (
+            {displayResources.map((topic) => (
               <div
                 key={topic.id || topic.slug || topic.title}
                 className="group flex flex-col justify-between rounded-xl border border-border/80 bg-background p-5 transition-all duration-200 hover:-translate-y-1 hover:border-teal/40 hover:shadow-md"
@@ -592,7 +615,7 @@ export default async function Home() {
 
         {/* Dynamic Lawyer Cards Grid */}
         <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {displayLawyers.map((advocate: any) => (
+          {displayLawyers.map((advocate) => (
             <Card
               key={advocate.id}
               className="border-border bg-white transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:shadow-navy/5 flex flex-col justify-between"
@@ -602,14 +625,14 @@ export default async function Home() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <span className="grid size-11 place-items-center rounded-xl bg-navy font-heading text-sm font-bold text-white">
-                      {initials(advocate.full_name || advocate.name || "Advocate")}
+                      {initials(advocate.full_name || "Advocate")}
                     </span>
                     <div>
                       <h3 className="font-heading text-base font-bold text-navy">
-                        {advocate.full_name || advocate.name}
+                        {advocate.full_name}
                       </h3>
                       <p className="text-xs text-slate">
-                        {advocate.professional_title || advocate.title || "Advocate High Court"}
+                        {advocate.professional_title || "Advocate High Court"}
                       </p>
                     </div>
                   </div>
@@ -639,13 +662,13 @@ export default async function Home() {
                     {advocate.city || "Karachi"}
                     {advocate.area ? `, ${advocate.area}` : ""}
                   </span>
-                  <span>{advocate.years_of_experience || advocate.experienceYears || 5} years experience</span>
+                  <span>{advocate.years_of_experience || 5} years experience</span>
                 </div>
 
                 {/* Bar enrollment confirmation */}
-                {(advocate.bar_license_number || advocate.barEnrollment) && (
+                {advocate.bar_license_number && (
                   <p className="text-[11px] text-slate bg-[#F7FAFA] p-2 rounded border border-border/50">
-                    Enrolled: <strong className="text-navy">{advocate.bar_license_number || advocate.barEnrollment}</strong>
+                    Enrolled: <strong className="text-navy">{advocate.bar_license_number}</strong>
                     {advocate.bar_council ? ` (${advocate.bar_council})` : ""}
                   </p>
                 )}
@@ -654,7 +677,7 @@ export default async function Home() {
                 <div className="flex items-center justify-between border-t border-border/70 pt-4">
                   <div>
                     <span className="font-heading text-base font-bold text-navy">
-                      {formatRate(advocate.consultation_fee || advocate.hourlyRate || 3000)}
+                      {formatRate(advocate.consultation_fee || 3000)}
                     </span>
                     <span className="text-xs text-slate"> / session</span>
                   </div>

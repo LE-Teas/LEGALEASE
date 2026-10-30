@@ -58,13 +58,15 @@ function formatConsultType(t: string): string {
   return t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+type SortBy = "date_desc" | "date_asc";
+
 export function LawyerAppointmentsListView({
   initialAppointments,
 }: AppointmentsListViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
-  const [sortBy, setSortBy] = useState<"date_desc" | "date_asc">("date_desc");
+  const [sortBy, setSortBy] = useState<SortBy>("date_desc");
 
   const todayStr = new Date().toISOString().slice(0, 10);
 
@@ -191,7 +193,7 @@ export function LawyerAppointmentsListView({
               </div>
 
               <div className="w-1/2 sm:w-36">
-                <Select value={sortBy} onValueChange={(val: any) => setSortBy(val)}>
+                <Select value={sortBy} onValueChange={(val: string) => setSortBy(val as SortBy)}>
                   <SelectTrigger className="h-9 text-xs">
                     <SelectValue placeholder="Sort Date" />
                   </SelectTrigger>

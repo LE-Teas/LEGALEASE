@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getErrorMessage } from "@/lib/errors";
 import { getAuthState } from "@/lib/auth/profile";
 import { submitReview } from "@/lib/services/reviews";
 
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true, review: result.review });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return NextResponse.json({ error: getErrorMessage(err) }, { status: 500 });
   }
 }

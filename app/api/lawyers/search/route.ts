@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
+import { getErrorMessage } from "@/lib/errors";
 import { searchLawyers } from "@/lib/services/lawyers";
+
+const SORT_OPTIONS = ["recommended", "nearest", "highest_rated", "experience", "fee_low"] as const;
+type SortOption = (typeof SORT_OPTIONS)[number];
 
 export async function GET(request: Request) {
   try {
@@ -8,7 +12,10 @@ export async function GET(request: Request) {
     const specialization = searchParams.get("specialization") || undefined;
     const city = searchParams.get("city") || undefined;
     const area = searchParams.get("area") || undefined;
-    const sort = (searchParams.get("sort") as any) || "recommended";
+    const sortParam = searchParams.get("sort");
+    const sort: SortOption = SORT_OPTIONS.includes(sortParam as SortOption)
+      ? (sortParam as SortOption)
+      : "recommended";
     const minExperience = searchParams.get("minExperience")
       ? Number(searchParams.get("minExperience"))
       : undefined;
@@ -42,7 +49,7 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({ lawyers });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message, lawyers: [] }, { status: 500 });
+  } catch (err) {
+    return NextResponse.json({ error: getErrorMessage(err), lawyers: [] }, { status: 500 });
   }
 }

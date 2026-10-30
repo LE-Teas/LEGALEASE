@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import { Check, KeyRound, Loader2, Lock, Shield } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -52,8 +53,8 @@ export function SettingsView({ profile }: SettingsViewProps) {
       setNewPassword("");
       setConfirmPassword("");
       setCurrentPassword("");
-    } catch (err: any) {
-      setPasswordError(err?.message || "Failed to update password.");
+    } catch (err) {
+      setPasswordError(getErrorMessage(err) || "Failed to update password.");
     } finally {
       setChangingPassword(false);
     }

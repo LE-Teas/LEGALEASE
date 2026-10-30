@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getErrorMessage } from "@/lib/errors";
 import { getAuthState } from "@/lib/auth/profile";
 import {
   getUserNotifications,
@@ -13,8 +14,8 @@ export async function GET() {
 
     const notifications = await getUserNotifications(user.id);
     return NextResponse.json({ notifications });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return NextResponse.json({ error: getErrorMessage(err) }, { status: 500 });
   }
 }
 
@@ -37,7 +38,7 @@ export async function PATCH(request: Request) {
     }
 
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return NextResponse.json({ error: getErrorMessage(err) }, { status: 500 });
   }
 }

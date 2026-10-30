@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import {
   CheckCircle2,
   XCircle,
@@ -80,8 +81,8 @@ export function VerificationDialog({
       setOpen(false);
       setAdminNote("");
       setLawyerNote("");
-    } catch (err: any) {
-      setError(err?.message || "Failed to update verification status.");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Failed to update verification status.");
     } finally {
       setLoading(false);
     }

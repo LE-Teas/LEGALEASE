@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import { User, Shield, AlertTriangle, CheckCircle2, MoreVertical, Ban, RefreshCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,8 +42,8 @@ export function UserStatusDialog({ user }: { user: UserProfileRecord }) {
       await toggleUserStatusAction(user.id, newStatus, reason);
       setOpen(false);
       setReason("");
-    } catch (err: any) {
-      setError(err?.message || "Action failed.");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Action failed.");
     } finally {
       setLoading(false);
     }

@@ -43,6 +43,13 @@ function formatConsultType(t: string): string {
   return t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+interface AppointmentReview {
+  rating: number;
+  comment: string | null;
+  created_at: string;
+  citizen?: { full_name: string | null } | null;
+}
+
 export default async function LawyerAppointmentDetailPage({
   params,
 }: {
@@ -57,14 +64,14 @@ export default async function LawyerAppointmentDetailPage({
 
   // Fetch review if completed
   const supabase = await createClient();
-  let review: any = null;
+  let review: AppointmentReview | null = null;
   if (supabase) {
     const { data: rev } = await supabase
       .from("reviews")
       .select("*, citizen:profiles!reviews_citizen_id_fkey(full_name)")
       .eq("appointment_id", appointment.id)
       .maybeSingle();
-    review = rev;
+    review = rev as unknown as AppointmentReview | null;
   }
 
   const status = statusConfig[appointment.status] || statusConfig.pending;
@@ -290,7 +297,7 @@ export default async function LawyerAppointmentDetailPage({
               </div>
               {review.comment ? (
                 <p className="text-xs text-slate-800 bg-white p-3 rounded-lg border border-slate-200 italic">
-                  "{review.comment}"
+                  &ldquo;{review.comment}&rdquo;
                 </p>
               ) : (
                 <p className="text-xs text-muted-foreground italic">No written comment provided.</p>

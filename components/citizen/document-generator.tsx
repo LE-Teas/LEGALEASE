@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -104,8 +105,8 @@ export function DocumentGenerator() {
           : "Document finalized and saved to your account."
       );
       router.refresh();
-    } catch (err: any) {
-      setErrorMsg(err.message || "Failed to save document");
+    } catch (err) {
+      setErrorMsg(getErrorMessage(err) || "Failed to save document");
     } finally {
       setSaving(false);
     }

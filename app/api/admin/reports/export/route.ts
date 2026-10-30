@@ -15,6 +15,44 @@ function escapeCsvField(val: unknown): string {
   return str;
 }
 
+interface LawyerExportRow {
+  id: string;
+  bar_council: string | null;
+  bar_license_number: string | null;
+  primary_specialization: string | null;
+  years_of_experience: number | null;
+  consultation_fee: number | null;
+  verification_status: string;
+  is_published: boolean;
+  profiles?: { full_name: string | null; email: string | null } | null;
+}
+
+interface AuditLogExportRow {
+  id: string;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  created_at: string;
+  admin?: { full_name: string | null; email: string | null } | null;
+}
+
+interface AppointmentExportRow {
+  id: string;
+  appointment_date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  consultation_type: string | null;
+  consultation_fee: number;
+  platform_fee: number | null;
+  total_amount: number | null;
+  payment_status: string;
+  citizen?: { full_name: string | null; email: string | null } | null;
+  lawyer?: { full_name: string | null; email: string | null; city: string | null } | null;
+}
+
+export const maxDuration = 60;
+
 export async function GET(request: Request) {
   const { user, profile } = await getAuthState();
   if (!user || !profile || profile.role !== "admin") {
@@ -29,8 +67,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Database unavailable." }, { status: 503 });
   }
 
-  let csvRows: string[] = [];
-  let filename = `legalease_${type}_export_${new Date().toISOString().slice(0, 10)}.csv`;
+  const csvRows: string[] = [];
+  const filename = `legalease_${type}_export_${new Date().toISOString().slice(0, 10)}.csv`;
 
   if (type === "users") {
     const { data: users } = await supabase
@@ -72,7 +110,7 @@ export async function GET(request: Request) {
       .order("created_at", { ascending: false });
 
     csvRows.push(["Lawyer ID", "Full Name", "Email", "Bar Council", "License Roll #", "Specialization", "Experience (Years)", "Fee (PKR)", "Verification Status", "Published"].join(","));
-    (lawyers || []).forEach((l: any) => {
+    ((lawyers ?? []) as unknown as LawyerExportRow[]).forEach((l) => {
       csvRows.push([
         escapeCsvField(l.id),
         escapeCsvField(l.profiles?.full_name),
@@ -101,7 +139,7 @@ export async function GET(request: Request) {
       .limit(500);
 
     csvRows.push(["Log ID", "Administrator", "Admin Email", "Action", "Target Type", "Target ID", "Timestamp"].join(","));
-    (logs || []).forEach((log: any) => {
+    ((logs ?? []) as unknown as AuditLogExportRow[]).forEach((log) => {
       csvRows.push([
         escapeCsvField(log.id),
         escapeCsvField(log.admin?.full_name || "System"),
@@ -135,7 +173,7 @@ export async function GET(request: Request) {
       .order("created_at", { ascending: false });
 
     csvRows.push(["Appointment ID", "Citizen Name", "Citizen Email", "Advocate Name", "Advocate City", "Date", "Start Time", "End Time", "Type", "Status", "Consultation Fee", "Platform Fee", "Total Paid", "Payment Status"].join(","));
-    (appts || []).forEach((a: any) => {
+    ((appts ?? []) as unknown as AppointmentExportRow[]).forEach((a) => {
       csvRows.push([
         escapeCsvField(a.id),
         escapeCsvField(a.citizen?.full_name || "Citizen"),

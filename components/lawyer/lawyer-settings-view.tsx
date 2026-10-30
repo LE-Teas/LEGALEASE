@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import Link from "next/link";
 import {
   Check,
@@ -84,8 +85,8 @@ export function LawyerSettingsView({ profile, lawyerProfile }: LawyerSettingsVie
       setPasswordSuccess(true);
       setNewPassword("");
       setConfirmPassword("");
-    } catch (err: any) {
-      setPasswordError(err?.message || "Failed to update password.");
+    } catch (err) {
+      setPasswordError(getErrorMessage(err) || "Failed to update password.");
     } finally {
       setChangingPassword(false);
     }
@@ -115,8 +116,8 @@ export function LawyerSettingsView({ profile, lawyerProfile }: LawyerSettingsVie
 
       setPrefsSuccess(true);
       setTimeout(() => setPrefsSuccess(false), 4000);
-    } catch (err: any) {
-      setPrefsError(err?.message || "An error occurred while saving.");
+    } catch (err) {
+      setPrefsError(getErrorMessage(err) || "An error occurred while saving.");
     } finally {
       setSavingPrefs(false);
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import {
   CalendarClock,
   Clock,
@@ -45,10 +46,10 @@ interface AppointmentDetailsRecord {
   description?: string | null;
   status: string;
   consultation_fee: number;
-  platform_fee: number;
-  tax_amount: number;
-  total_amount: number;
-  lawyer_receivable: number;
+  platform_fee: number | null;
+  tax_amount: number | null;
+  total_amount: number | null;
+  lawyer_receivable: number | null;
   payment_status: string;
   settlement_status?: string | null;
   settlement_reference?: string | null;
@@ -57,16 +58,16 @@ interface AppointmentDetailsRecord {
   early_completion_reason?: string | null;
   cancelled_by?: string | null;
   cancellation_reason?: string | null;
-  citizen: {
-    full_name: string;
-    email: string;
+  citizen?: {
+    full_name: string | null;
+    email: string | null;
     phone?: string | null;
-  };
-  lawyer: {
-    full_name: string;
-    email: string;
+  } | null;
+  lawyer?: {
+    full_name: string | null;
+    email: string | null;
     city?: string | null;
-  };
+  } | null;
 }
 
 export function AppointmentManagementDialog({
@@ -95,8 +96,8 @@ export function AppointmentManagementDialog({
       setOpen(false);
       setShowCancelConfirm(false);
       setCancelReason("");
-    } catch (err: any) {
-      setError(err?.message || "Failed to cancel appointment.");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Failed to cancel appointment.");
     } finally {
       setLoading(false);
     }
@@ -111,8 +112,8 @@ export function AppointmentManagementDialog({
       setTimeout(() => {
         setOpen(false);
       }, 1500);
-    } catch (err: any) {
-      setError(err?.message || "Failed to process settlement payout.");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Failed to process settlement payout.");
     } finally {
       setSettling(false);
     }
@@ -299,12 +300,12 @@ export function AppointmentManagementDialog({
                 </div>
                 <div className="flex justify-between text-slate-600">
                   <span>Platform Commission (10%)</span>
-                  <span className="font-medium text-[#0CA275]">{formatRate(appointment.platform_fee)}</span>
+                  <span className="font-medium text-[#0CA275]">{formatRate(appointment.platform_fee ?? 0)}</span>
                 </div>
-                {appointment.tax_amount > 0 && (
+                {(appointment.tax_amount ?? 0) > 0 && (
                   <div className="flex justify-between text-slate-600">
                     <span>Tax Amount</span>
-                    <span className="font-medium text-slate-800">{formatRate(appointment.tax_amount)}</span>
+                    <span className="font-medium text-slate-800">{formatRate(appointment.tax_amount ?? 0)}</span>
                   </div>
                 )}
                 <div className="flex justify-between border-t border-slate-200 pt-1.5 font-semibold text-slate-900">
@@ -316,7 +317,7 @@ export function AppointmentManagementDialog({
                 <div className="flex justify-between text-[11px] text-slate-500 pt-0.5">
                   <span>Advocate Net Receivable Payout</span>
                   <span className="font-medium text-slate-700">
-                    {formatRate(appointment.lawyer_receivable || appointment.consultation_fee - appointment.platform_fee)}
+                    {formatRate(appointment.lawyer_receivable || appointment.consultation_fee - (appointment.platform_fee ?? 0))}
                   </span>
                 </div>
               </>
@@ -332,7 +333,7 @@ export function AppointmentManagementDialog({
                     Eligible for Commission Settlement Payout
                   </h4>
                   <p className="text-[11px] text-emerald-800">
-                    Advocate Net Share: <strong>{formatRate(appointment.lawyer_receivable)}</strong> (Commission retained: {formatRate(appointment.platform_fee)})
+                    Advocate Net Share: <strong>{formatRate(appointment.lawyer_receivable ?? 0)}</strong> (Commission retained: {formatRate(appointment.platform_fee ?? 0)})
                   </p>
                 </div>
                 <Button

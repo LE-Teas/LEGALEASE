@@ -35,6 +35,35 @@ interface PageProps {
   searchParams: Promise<{ status?: string; search?: string; city?: string; page?: string }>;
 }
 
+interface AdminLawyerRow {
+  id: string;
+  professional_title: string | null;
+  primary_specialization: string | null;
+  specializations: string[] | null;
+  years_of_experience: number | null;
+  bar_council: string | null;
+  bar_license_number: string | null;
+  city: string | null;
+  office_address: string | null;
+  consultation_fee: number | null;
+  verification_status: VerificationStatus;
+  is_published: boolean;
+  created_at: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  avatar_url: string | null;
+  license_number: string | null;
+  license_document_path: string | null;
+  additional_document_path: string | null;
+}
+
+interface VerificationDocRow {
+  lawyer_id: string;
+  license_document_path: string | null;
+  additional_document_path: string | null;
+}
+
 export default async function AdminLawyersPage({ searchParams }: PageProps) {
   const { status, search, city, page } = await searchParams;
   const supabase = await createClient();
@@ -42,7 +71,7 @@ export default async function AdminLawyersPage({ searchParams }: PageProps) {
   const currentPage = Math.max(Number(page) || 1, 1);
   const pageSize = 12;
 
-  let lawyers: any[] = [];
+  let lawyers: AdminLawyerRow[] = [];
   let totalMatchingLawyers = 0;
 
   const counts: Record<string, number> = {
@@ -111,8 +140,8 @@ export default async function AdminLawyersPage({ searchParams }: PageProps) {
     const { data, count, error } = await query.range(fromIndex, toIndex);
     if (!error && data) {
       // 3. Fetch verification documents for these lawyers
-      const lawyerIds = data.map((d: any) => d.id);
-      let docMap: Record<string, any> = {};
+      const lawyerIds = data.map((d) => d.id);
+      const docMap: Record<string, VerificationDocRow> = {};
 
       if (lawyerIds.length > 0) {
         const { data: docRows } = await supabase
@@ -127,7 +156,7 @@ export default async function AdminLawyersPage({ searchParams }: PageProps) {
         }
       }
 
-      lawyers = data.map((item: any) => ({
+      lawyers = (data as unknown as Array<AdminLawyerRow & { profiles: { full_name: string | null; email: string | null; phone: string | null; avatar_url: string | null } | null }>).map((item) => ({
         ...item,
         full_name: item.profiles?.full_name || "Advocate",
         email: item.profiles?.email || "",

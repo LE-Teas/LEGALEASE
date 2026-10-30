@@ -11,6 +11,7 @@
  */
 
 import { getAiConfig } from "@/lib/ai/config";
+import { getErrorMessage } from "@/lib/errors";
 import { createClient } from "@/lib/supabase/server";
 
 export interface EvaluationResult {
@@ -95,11 +96,13 @@ export async function evaluateModel(modelId: string): Promise<EvaluationResult> 
       };
     }
 
-    const data = (await res.json()) as any;
+    const data = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
     const content = data.choices?.[0]?.message?.content || "";
 
     // Parse JSON
-    let parsed: any = null;
+    let parsed: Record<string, unknown> | null = null;
     let structuredScore = 0;
     try {
       let clean = content.trim();
@@ -111,7 +114,7 @@ export async function evaluateModel(modelId: string): Promise<EvaluationResult> 
       if (first !== -1 && last > first) {
         clean = clean.slice(first, last + 1);
       }
-      parsed = JSON.parse(clean);
+      parsed = JSON.parse(clean) as Record<string, unknown>;
       if (parsed && typeof parsed === "object") {
         structuredScore = 100;
       }
@@ -178,7 +181,7 @@ export async function evaluateModel(modelId: string): Promise<EvaluationResult> 
     }
 
     return result;
-  } catch (err: any) {
+  } catch (err) {
     const latencyMs = Date.now() - startTime;
     return {
       modelId,
@@ -188,7 +191,7 @@ export async function evaluateModel(modelId: string): Promise<EvaluationResult> 
       citationScore: 0,
       groundingScore: 0,
       overallScore: 0,
-      errorDetail: err?.message || String(err),
+      errorDetail: getErrorMessage(err) || String(err),
     };
   } finally {
     clearTimeout(timeout);

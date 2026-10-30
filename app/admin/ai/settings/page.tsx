@@ -5,7 +5,10 @@ import { ArrowLeft, Cpu, Key, ShieldCheck, Sparkles } from "lucide-react";
 import { getAuthState } from "@/lib/auth/profile";
 import { createClient } from "@/lib/supabase/server";
 import { PlatformAiSettingsForm } from "@/components/admin/settings-forms";
-import { ModelRouterSettingsClient } from "@/components/admin/model-router-settings";
+import {
+  ModelRouterSettingsClient,
+  type ModelRegistryRow,
+} from "@/components/admin/model-router-settings";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,7 +39,7 @@ export default async function AdminAiSettingsPage() {
     model_cache_ttl_hours: 4,
     last_refreshed_at: null as string | null,
   };
-  let registryModels: any[] = [];
+  let registryModels: ModelRegistryRow[] = [];
   let recommendationSettings = {
     enabled: true,
     max_recommendations: 3,
@@ -61,7 +64,10 @@ export default async function AdminAiSettingsPage() {
     }
     if (routingRes.data) {
       routingConfig = {
-        routing_mode: (routingRes.data.routing_mode as any) || "auto_free",
+        routing_mode:
+          routingRes.data.routing_mode === "openrouter_free" || routingRes.data.routing_mode === "manual"
+            ? routingRes.data.routing_mode
+            : "auto_free",
         primary_model: routingRes.data.primary_model || "meta-llama/llama-3.3-70b-instruct:free",
         fallback_model_1: routingRes.data.fallback_model_1 || "google/gemini-2.0-flash-exp:free",
         fallback_model_2: routingRes.data.fallback_model_2 || "mistralai/mistral-small-24b-instruct-2501:free",
@@ -71,7 +77,7 @@ export default async function AdminAiSettingsPage() {
       };
     }
     if (modelsRes.data) {
-      registryModels = modelsRes.data;
+      registryModels = (modelsRes.data ?? []) as unknown as ModelRegistryRow[];
     }
     if (recRes.data) {
       recommendationSettings = {

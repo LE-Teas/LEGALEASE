@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getErrorMessage } from "@/lib/errors";
 import { getAuthState } from "@/lib/auth/profile";
 import { submitLawyerVerification } from "@/lib/services/verifications";
 
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true, verification: result.verification });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return NextResponse.json({ error: getErrorMessage(err) }, { status: 500 });
   }
 }

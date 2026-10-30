@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import {
   CalendarOff,
   Check,
@@ -75,6 +76,8 @@ export default function LawyerAvailabilityPage() {
   }, []);
 
   useEffect(() => {
+    // Initial data load: fetchData updates state once the request resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
   }, [fetchData]);
 
@@ -141,8 +144,8 @@ export default function LawyerAvailabilityPage() {
       }
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError(getErrorMessage(e));
     } finally {
       setSaving(false);
     }
@@ -169,8 +172,8 @@ export default function LawyerAvailabilityPage() {
       setToEndDate("");
       setToReason("");
       fetchData();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError(getErrorMessage(e));
     } finally {
       setAddingTimeOff(false);
     }
@@ -351,7 +354,7 @@ export default function LawyerAvailabilityPage() {
                 Blocked Dates / Time Off
               </CardTitle>
               <CardDescription>
-                Block specific dates when you're unavailable.
+                Block specific dates when you&apos;re unavailable.
               </CardDescription>
             </div>
             <Button

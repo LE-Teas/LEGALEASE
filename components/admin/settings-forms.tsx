@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import { Loader2, Save, Sparkles, DollarSign, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,8 +49,8 @@ export function PlatformFeeSettingsForm({
 
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    } catch (err: any) {
-      setError(err?.message || "Failed to update platform settings.");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Failed to update platform settings.");
     } finally {
       setSaving(false);
     }
@@ -232,8 +233,8 @@ export function PlatformAiSettingsForm({
 
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    } catch (err: any) {
-      setError(err?.message || "Failed to update AI settings.");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Failed to update AI settings.");
     } finally {
       setSaving(false);
     }
@@ -450,8 +451,8 @@ export function PlatformGeneralSettingsForm({
 
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    } catch (err: any) {
-      setError(err?.message || "Failed to update general settings.");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Failed to update general settings.");
     } finally {
       setSaving(false);
     }

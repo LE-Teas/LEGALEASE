@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import { Megaphone, Send, Users, Scale, User, CheckCircle2 } from "lucide-react";
 import {
   Dialog,
@@ -44,8 +45,8 @@ export function BroadcastNotificationDialog() {
         setOpen(false);
         setSuccess(null);
       }, 1800);
-    } catch (err: any) {
-      setError(err?.message || "Failed to broadcast notification.");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Failed to broadcast notification.");
     } finally {
       setLoading(false);
     }

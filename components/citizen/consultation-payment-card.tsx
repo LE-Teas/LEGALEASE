@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import { useRouter } from "next/navigation";
 import { CreditCard, ShieldCheck, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -47,8 +48,8 @@ export function ConsultationPaymentCard({ appointment }: ConsultationPaymentCard
       }
 
       router.refresh();
-    } catch (err: any) {
-      setError(err.message || "Failed to process payment");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Failed to process payment");
     } finally {
       setLoading(false);
     }

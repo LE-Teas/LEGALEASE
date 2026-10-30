@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import { useRouter } from "next/navigation";
 import {
   Camera,
@@ -109,8 +110,8 @@ export function LawyerProfileEditor({ lawyer, profile }: ProfileEditorProps) {
       } = supabase.storage.from("avatars").getPublicUrl(filePath);
 
       setAvatarUrl(publicUrl);
-    } catch (err: any) {
-      setError(err?.message || "Failed to upload avatar");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Failed to upload avatar");
     } finally {
       setUploadingAvatar(false);
     }
@@ -184,8 +185,8 @@ export function LawyerProfileEditor({ lawyer, profile }: ProfileEditorProps) {
       setSuccess(true);
       router.refresh();
       setTimeout(() => setSuccess(false), 4000);
-    } catch (err: any) {
-      setError(err?.message || "Failed to update profile");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Failed to update profile");
     } finally {
       setSaving(false);
     }

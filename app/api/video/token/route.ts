@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getErrorMessage } from "@/lib/errors";
 import { getAuthState } from "@/lib/auth/profile";
 import { createClient } from "@/lib/supabase/server";
 import crypto from "crypto";
@@ -176,8 +177,8 @@ export async function POST(request: Request) {
       sessionStartedAt,
       serverTime: new Date().toISOString(),
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error("[video/token]", err);
-    return NextResponse.json({ error: err.message || "Internal error" }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(err) || "Internal error" }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import {
   ArrowUp,
   Bot,
@@ -251,11 +252,11 @@ export function ChatInterface() {
         } else {
           loadConversations();
         }
-      } catch (err: any) {
+      } catch (err) {
         setMessages((prev) =>
           prev.map((m) =>
             m.id === tempId
-              ? { ...m, role: "user", status: "error", error: err.message }
+              ? { ...m, role: "user", status: "error", error: getErrorMessage(err) }
               : m
           )
         );

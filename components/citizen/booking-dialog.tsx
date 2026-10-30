@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import { useRouter } from "next/navigation";
 import {
   Building2,
@@ -79,6 +80,8 @@ export function BookingDialog({ lawyer, initialOpen = false }: BookingDialogProp
   // Calculate fee breakdown whenever consultationType, lawyer fee, or duration changes
   useEffect(() => {
     if (isPhysical) {
+      // In-person consultations have no platform fee; reset the breakdown.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFeeBreakdown({
         consultation_fee: 0,
         platform_fee: 0,
@@ -125,6 +128,8 @@ export function BookingDialog({ lawyer, initialOpen = false }: BookingDialogProp
     if (!open) return;
 
     let active = true;
+    // Reset slot state for the newly selected date before fetching.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingSlots(true);
     setSelectedSlot(null);
     setError(null);
@@ -206,8 +211,8 @@ export function BookingDialog({ lawyer, initialOpen = false }: BookingDialogProp
       setOpen(false);
       router.push(`/citizen/appointments/${appointmentId}`);
       router.refresh();
-    } catch (err: any) {
-      setError(err?.message || "Failed to book consultation. Please try another slot.");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Failed to book consultation. Please try another slot.");
     } finally {
       setSubmitting(false);
     }

@@ -104,7 +104,16 @@ export async function getLawyerClients(lawyerId: string): Promise<LawyerClientSu
   const todayStr = new Date().toISOString().slice(0, 10);
 
   for (const a of appts) {
-    const cit = (a as any).citizen;
+    const cit = (
+      a as unknown as {
+        citizen: {
+          full_name: string | null;
+          email: string | null;
+          phone: string | null;
+          avatar_url: string | null;
+        } | null;
+      }
+    ).citizen;
     if (!cit) continue;
 
     if (!clientMap.has(a.citizen_id)) {

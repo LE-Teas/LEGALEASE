@@ -43,6 +43,8 @@ export function NotificationBell({ userId, role }: NotificationBellProps) {
   }, [userId]);
 
   useEffect(() => {
+    // Initial notification load; realtime updates are handled below.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchNotifications();
 
     const supabase = createClient();

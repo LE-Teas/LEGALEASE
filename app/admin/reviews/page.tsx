@@ -20,11 +20,22 @@ interface PageProps {
   searchParams: Promise<{ status?: string; search?: string; rating?: string }>;
 }
 
+interface AdminReviewRow {
+  id: string;
+  rating: number;
+  comment: string | null;
+  is_visible: boolean;
+  moderated_at: string | null;
+  created_at: string;
+  citizen?: { full_name: string | null; email: string | null } | null;
+  lawyer?: { full_name: string | null; city: string | null } | null;
+}
+
 export default async function AdminReviewsPage({ searchParams }: PageProps) {
   const { status, search, rating } = await searchParams;
   const supabase = await createClient();
 
-  let reviews: any[] = [];
+  let reviews: AdminReviewRow[] = [];
   let visibleCount = 0;
   let hiddenCount = 0;
   let totalRatingSum = 0;
@@ -56,7 +67,7 @@ export default async function AdminReviewsPage({ searchParams }: PageProps) {
 
     const { data } = await query;
     if (data) {
-      reviews = data;
+      reviews = data as unknown as AdminReviewRow[];
       data.forEach((r) => {
         if (r.is_visible) visibleCount++;
         else hiddenCount++;

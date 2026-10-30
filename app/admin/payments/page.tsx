@@ -34,11 +34,25 @@ interface PageProps {
   searchParams: Promise<{ status?: string; search?: string }>;
 }
 
+interface PaymentRow {
+  id: string;
+  appointment_date: string;
+  consultation_fee: number;
+  platform_fee: number | null;
+  tax_amount: number | null;
+  total_amount: number | null;
+  lawyer_receivable: number | null;
+  payment_status: string;
+  created_at: string;
+  citizen?: { full_name: string | null; email: string | null } | null;
+  lawyer?: { full_name: string | null; email: string | null; city: string | null } | null;
+}
+
 export default async function AdminPaymentsPage({ searchParams }: PageProps) {
   const { status, search } = await searchParams;
   const supabase = await createClient();
 
-  let payments: any[] = [];
+  let payments: PaymentRow[] = [];
   let totalGross = 0;
   let totalPlatformFees = 0;
   let totalLawyerPayouts = 0;
@@ -83,7 +97,7 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
         }
       });
 
-      let filtered = allAppts;
+      let filtered = allAppts as unknown as PaymentRow[];
       if (status && status !== "all") {
         filtered = filtered.filter((a) => a.payment_status === status);
       }
@@ -91,7 +105,7 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
       if (search && search.trim()) {
         const q = search.toLowerCase();
         filtered = filtered.filter(
-          (a: any) =>
+          (a) =>
             a.citizen?.full_name?.toLowerCase().includes(q) ||
             a.lawyer?.full_name?.toLowerCase().includes(q) ||
             a.id.toLowerCase().includes(q)

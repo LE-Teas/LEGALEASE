@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/errors";
 import { useRouter } from "next/navigation";
 import { Camera, Check, Loader2, Save, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -30,7 +31,7 @@ export function CitizenProfileForm({ initialProfile }: ProfileFormProps) {
   const [fullName, setFullName] = useState(initialProfile.full_name || "");
   const [phone, setPhone] = useState(initialProfile.phone || "");
   const [city, setCity] = useState(initialProfile.city || "Karachi");
-  const [area, setArea] = useState((initialProfile as any).area || "");
+  const [area, setArea] = useState(initialProfile.area || "");
   // preferred_language is always "English" — no selector shown
   const [avatarUrl, setAvatarUrl] = useState(initialProfile.avatar_url || "");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -64,8 +65,8 @@ export function CitizenProfileForm({ initialProfile }: ProfileFormProps) {
       } = supabase.storage.from("avatars").getPublicUrl(filePath);
 
       setAvatarUrl(publicUrl);
-    } catch (err: any) {
-      setError(err?.message || "Failed to upload avatar image.");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Failed to upload avatar image.");
     } finally {
       setUploadingAvatar(false);
     }
@@ -108,8 +109,8 @@ export function CitizenProfileForm({ initialProfile }: ProfileFormProps) {
       setSuccess(true);
       router.refresh();
       setTimeout(() => setSuccess(false), 4000);
-    } catch (err: any) {
-      setError(err?.message || "Failed to update profile.");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Failed to update profile.");
     } finally {
       setSaving(false);
     }

@@ -32,6 +32,33 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+interface DocRow {
+  verification_status: string | null;
+  processing_status: string | null;
+  is_active: boolean | null;
+  is_repealed: boolean | null;
+}
+
+interface AiSettingsRow {
+  generation_model: string | null;
+  embedding_model: string | null;
+  similarity_threshold: number | null;
+  rag_enabled: boolean | null;
+  maintenance_mode: boolean | null;
+}
+
+interface RoutingConfigRow {
+  primary_model: string | null;
+  routing_mode: string | null;
+}
+
+interface FilerDatasetRow {
+  id: string;
+  status: string;
+  record_count: number | null;
+  file_name: string | null;
+}
+
 export default async function AdminAiDashboardPage() {
   const { user, profile } = await getAuthState();
   if (!user || !profile || profile.role !== "admin") {
@@ -50,24 +77,30 @@ export default async function AdminAiDashboardPage() {
     supabase ? supabase.from("ai_routing_config").select("*").eq("id", "default").maybeSingle() : Promise.resolve({ data: null }),
   ]);
 
-  const allDocs = (docsResult && "data" in docsResult ? docsResult.data : []) ?? [];
+  const allDocs = (((docsResult && "data" in docsResult ? docsResult.data : []) ?? []) as DocRow[]);
   const totalChunks = (chunksResult && "count" in chunksResult ? chunksResult.count : 0) ?? 0;
-  const dbAiSettings = (aiSettingsResult && "data" in aiSettingsResult ? aiSettingsResult.data : null) as any;
-  const filerDatasets = (filerDatasetsResult && "data" in filerDatasetsResult ? filerDatasetsResult.data : []) ?? [];
-  const dbRoutingConfig = (routingConfigResult && "data" in routingConfigResult ? routingConfigResult.data : null) as any;
+  const dbAiSettings = (aiSettingsResult && "data" in aiSettingsResult
+    ? aiSettingsResult.data
+    : null) as AiSettingsRow | null;
+  const filerDatasets = (((filerDatasetsResult && "data" in filerDatasetsResult
+    ? filerDatasetsResult.data
+    : []) ?? []) as FilerDatasetRow[]);
+  const dbRoutingConfig = (routingConfigResult && "data" in routingConfigResult
+    ? routingConfigResult.data
+    : null) as RoutingConfigRow | null;
 
-  const activeDataset = filerDatasets.find((d: any) => d.status === "active");
+  const activeDataset = filerDatasets.find((d) => d.status === "active");
   const primaryRoutingModel = dbRoutingConfig?.primary_model || cfg.openRouterModel;
   const routingMode = dbRoutingConfig?.routing_mode || "auto_free";
 
   const stats = {
     totalDocs: allDocs.length,
-    verifiedDocs: allDocs.filter((d: any) => d.verification_status === "verified").length,
-    pendingDocs: allDocs.filter((d: any) => d.verification_status === "pending").length,
-    needsReviewDocs: allDocs.filter((d: any) => d.verification_status === "needs_review").length,
-    processingDocs: allDocs.filter((d: any) => d.processing_status === "extracting" || d.processing_status === "chunking" || d.processing_status === "embedding").length,
-    failedDocs: allDocs.filter((d: any) => d.processing_status === "failed" || d.verification_status === "rejected").length,
-    activeDocs: allDocs.filter((d: any) => d.is_active && !d.is_repealed && d.verification_status === "verified").length,
+    verifiedDocs: allDocs.filter((d) => d.verification_status === "verified").length,
+    pendingDocs: allDocs.filter((d) => d.verification_status === "pending").length,
+    needsReviewDocs: allDocs.filter((d) => d.verification_status === "needs_review").length,
+    processingDocs: allDocs.filter((d) => d.processing_status === "extracting" || d.processing_status === "chunking" || d.processing_status === "embedding").length,
+    failedDocs: allDocs.filter((d) => d.processing_status === "failed" || d.verification_status === "rejected").length,
+    activeDocs: allDocs.filter((d) => d.is_active && !d.is_repealed && d.verification_status === "verified").length,
     totalChunks,
   };
 
@@ -173,7 +206,7 @@ export default async function AdminAiDashboardPage() {
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground font-medium">Active Taxpayer List</p>
               <p className="font-heading font-bold text-sm text-navy truncate">
-                {activeDataset ? `${activeDataset.record_count.toLocaleString()} Records` : "No Active Dataset"}
+                {activeDataset ? `${(activeDataset.record_count ?? 0).toLocaleString()} Records` : "No Active Dataset"}
               </p>
             </div>
           </CardContent>
@@ -306,7 +339,7 @@ export default async function AdminAiDashboardPage() {
           <CardContent className="pt-0 flex flex-col gap-2">
             <div className="flex items-center justify-between text-xs py-1 border-t border-slate-100">
               <span className="text-muted-foreground">Active dataset</span>
-              <span className="font-medium text-navy truncate max-w-[140px]" title={activeDataset?.file_name}>
+              <span className="font-medium text-navy truncate max-w-[140px]" title={activeDataset?.file_name ?? undefined}>
                 {activeDataset?.file_name || "None active"}
               </span>
             </div>
