@@ -179,11 +179,10 @@ export default async function LawyerProfilePage() {
       </Card>
 
       <Card className="overflow-hidden border-border bg-white shadow-sm">
-        <div className="h-28 bg-navy" />
-        <CardContent className="relative px-6 pb-6 pt-0">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 -mt-12 sm:-mt-14">
-            <div className="flex items-end gap-4">
-              <Avatar className="size-24 border-4 border-white shadow-md bg-white">
+        <CardContent className="p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+              <Avatar className="size-20 sm:size-24 border-2 border-slate-200 shadow-sm bg-slate-50 shrink-0">
                 {profile.avatar_url && (
                   <AvatarImage src={profile.avatar_url} alt={profile.full_name} />
                 )}
@@ -191,34 +190,34 @@ export default async function LawyerProfilePage() {
                   {initials}
                 </AvatarFallback>
               </Avatar>
-              <div className="mb-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-heading text-xl font-bold text-navy">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-heading text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                     {profile.full_name}
                   </h3>
                   {lawyer.verification_status === "verified" && (
-                    <Badge variant="secondary" className="gap-1 bg-teal-soft text-teal text-[10px]">
-                      <BadgeCheck className="size-3 text-teal" />
+                    <Badge variant="secondary" className="gap-1 bg-teal-soft text-teal text-[11px] font-medium border border-teal/20">
+                      <BadgeCheck className="size-3.5 text-teal" />
                       Verified
                     </Badge>
                   )}
                 </div>
-                <p className="text-xs text-slate-600 font-medium">{lawyer.professional_title}</p>
-                <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                <p className="text-sm text-slate-700 font-medium mt-1">{lawyer.professional_title || "Advocate High Court"}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
-                    <MapPin className="size-3 text-slate-400" />
+                    <MapPin className="size-3.5 text-slate-400" />
                     {lawyer.city} {lawyer.area ? `(${lawyer.area})` : ""}
                   </span>
-                  <span>{lawyer.years_of_experience} yrs experience</span>
-                  <span className="flex items-center gap-1 text-slate-800 font-semibold">
-                    <Star className="size-3 fill-gold text-gold" />
-                    {Number(lawyer.rating || 0).toFixed(1)} ({lawyer.review_count || 0})
+                  <span className="font-medium text-slate-600">{lawyer.years_of_experience} yrs experience</span>
+                  <span className="flex items-center gap-1 text-slate-900 font-semibold">
+                    <Star className="size-3.5 fill-gold text-gold" />
+                    {Number(lawyer.rating || 0).toFixed(1)} ({lawyer.review_count || 0} reviews)
                   </span>
                 </div>
               </div>
             </div>
 
-            <Button asChild size="sm" variant="outline" className="text-xs">
+            <Button asChild size="sm" variant="outline" className="text-xs shrink-0">
               <Link href={`/citizen/lawyers/${lawyer.id}`}>View Citizen Profile</Link>
             </Button>
           </div>
