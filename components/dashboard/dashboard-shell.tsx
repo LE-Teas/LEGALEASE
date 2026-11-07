@@ -364,10 +364,48 @@ export function DashboardShell({ profile, children }: DashboardShellProps) {
         </header>
 
         {/* Content Body */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <main className="flex-1 overflow-y-auto flex flex-col">
+          <div className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
             {children}
           </div>
+          <footer className="border-t border-slate-200 bg-white px-4 py-4 sm:px-6 lg:px-8">
+            <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 text-xs text-slate-500 sm:flex-row">
+              <p>© {new Date().getFullYear()} LegalEase Pakistan — Mobile SDKs (Expo SDK 58)</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <a
+                  href="/downloads/legalease-android.apk"
+                  download="legalease-android.apk"
+                  className="font-semibold text-[#0A2843] hover:text-[#0CA275] transition-colors"
+                >
+                  Download Android APK
+                </a>
+                <span className="text-slate-300">·</span>
+                <a
+                  href="/downloads/legalease-android-sdk.zip"
+                  download="legalease-android-sdk.zip"
+                  className="font-medium text-slate-600 hover:text-[#0CA275] transition-colors"
+                >
+                  Android SDK (.ZIP)
+                </a>
+                <span className="text-slate-300">·</span>
+                <a
+                  href="/downloads/legalease-ios.ipa"
+                  download="legalease-ios.ipa"
+                  className="font-semibold text-[#0A2843] hover:text-[#0CA275] transition-colors"
+                >
+                  Download iOS IPA
+                </a>
+                <span className="text-slate-300">·</span>
+                <a
+                  href="/downloads/legalease-ios-sdk.zip"
+                  download="legalease-ios-sdk.zip"
+                  className="font-medium text-slate-600 hover:text-[#0CA275] transition-colors"
+                >
+                  iOS SDK (.ZIP)
+                </a>
+              </div>
+            </div>
+          </footer>
         </main>
       </div>
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Mail, MapPin, Phone } from "lucide-react";
+import { Download, Mail, MapPin, Phone, Smartphone } from "lucide-react";
 import { Logo } from "@/components/layout/logo";
 
 const footerColumns = [
@@ -36,6 +36,15 @@ const footerColumns = [
       { href: "/forgot-password", label: "Forgot password" },
     ],
   },
+  {
+    title: "Mobile & SDK",
+    links: [
+      { href: "/downloads/legalease-android.apk", label: "Android App (.APK)", download: true },
+      { href: "/downloads/legalease-android-sdk.zip", label: "Android SDK (.ZIP)", download: true },
+      { href: "/downloads/legalease-ios.ipa", label: "iOS App (.IPA)", download: true },
+      { href: "/downloads/legalease-ios-sdk.zip", label: "iOS SDK (.ZIP)", download: true },
+    ],
+  },
 ];
 
 const contactDetails = [
@@ -48,7 +57,7 @@ export function SiteFooter() {
   return (
     <footer className="border-t border-border/10 bg-navy text-white">
       <div className="mx-auto w-full max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-        <div className="grid gap-10 lg:grid-cols-[1.5fr_1fr_1fr_1fr_1fr]">
+        <div className="grid gap-10 lg:grid-cols-[1.5fr_1fr_1fr_1fr_1fr_1.1fr]">
           <div className="max-w-sm space-y-5">
             <Logo variant="light" />
             <p className="text-sm font-medium text-white/90">
@@ -65,6 +74,48 @@ export function SiteFooter() {
                 </span>
               ))}
             </div>
+
+            <div className="pt-2">
+              <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-teal">
+                Download Mobile App & SDK (Expo SDK 58)
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href="/downloads/legalease-android.apk"
+                  download="legalease-android.apk"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-teal/40 bg-teal/15 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-teal hover:text-navy"
+                >
+                  <Smartphone className="size-3.5 text-teal" />
+                  <span>Android APK</span>
+                  <Download className="size-3 opacity-80" />
+                </a>
+                <a
+                  href="/downloads/legalease-android-sdk.zip"
+                  download="legalease-android-sdk.zip"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/85 transition-colors hover:border-teal/40 hover:bg-white/10 hover:text-white"
+                >
+                  <span>Android SDK</span>
+                  <Download className="size-3 opacity-80" />
+                </a>
+                <a
+                  href="/downloads/legalease-ios.ipa"
+                  download="legalease-ios.ipa"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-teal/40 bg-teal/15 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-teal hover:text-navy"
+                >
+                  <Smartphone className="size-3.5 text-teal" />
+                  <span>iOS IPA</span>
+                  <Download className="size-3 opacity-80" />
+                </a>
+                <a
+                  href="/downloads/legalease-ios-sdk.zip"
+                  download="legalease-ios-sdk.zip"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/85 transition-colors hover:border-teal/40 hover:bg-white/10 hover:text-white"
+                >
+                  <span>iOS SDK</span>
+                  <Download className="size-3 opacity-80" />
+                </a>
+              </div>
+            </div>
           </div>
 
           {footerColumns.map((column) => (
@@ -75,12 +126,23 @@ export function SiteFooter() {
               <ul className="mt-4 space-y-2.5">
                 {column.links.map((link) => (
                   <li key={link.href}>
-                    <Link
-                      href={link.href}
-                      className="text-xs text-white/70 transition-colors hover:text-white"
-                    >
-                      {link.label}
-                    </Link>
+                    {"download" in link && link.download ? (
+                      <a
+                        href={link.href}
+                        download
+                        className="inline-flex items-center gap-1.5 text-xs text-white/70 transition-colors hover:text-white"
+                      >
+                        <Download className="size-3 text-teal" />
+                        <span>{link.label}</span>
+                      </a>
+                    ) : (
+                      <Link
+                        href={link.href}
+                        className="text-xs text-white/70 transition-colors hover:text-white"
+                      >
+                        {link.label}
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -92,9 +154,27 @@ export function SiteFooter() {
           <p>
             © {new Date().getFullYear()} LegalEase Pakistan. Final Year Project — KIET BSCS. All rights reserved.
           </p>
-          <p className="inline-flex items-center gap-1.5">
-            Built with Next.js & Supabase · Powered by Google Gemini
-          </p>
+          <div className="flex flex-wrap items-center gap-4">
+            <a
+              href="/downloads/legalease-android-sdk.zip"
+              download
+              className="text-white/60 transition-colors hover:text-teal"
+            >
+              Download Android SDK
+            </a>
+            <span>·</span>
+            <a
+              href="/downloads/legalease-ios-sdk.zip"
+              download
+              className="text-white/60 transition-colors hover:text-teal"
+            >
+              Download iOS SDK
+            </a>
+            <span>·</span>
+            <p className="inline-flex items-center gap-1.5">
+              Built with Next.js & Supabase · Powered by Google Gemini
+            </p>
+          </div>
         </div>
       </div>
     </footer>

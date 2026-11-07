@@ -18,7 +18,7 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0A2843" />
+      <StatusBar barStyle="light-content" />
       <View style={styles.topNav}>
         <View style={styles.brandRow}>
           <View style={styles.logoBadge}>

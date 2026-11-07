@@ -57,5 +57,6 @@ react-native-app/node_modules/
 react-native-app/.expo/
 react-native-app/android/
 react-native-app/ios/
+react-native-app/dist/
 
 
