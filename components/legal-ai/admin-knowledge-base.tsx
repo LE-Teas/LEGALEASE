@@ -28,6 +28,7 @@ import {
   markDocumentNeedsReview,
   deleteDocument,
   reprocessDocument,
+  bulkDeleteRagData,
   type AdminActionResult,
 } from "@/app/actions/knowledge-base";
 import type { AdminDocumentRow } from "@/app/admin/knowledge-base/page";
@@ -112,6 +113,51 @@ export function AdminKnowledgeBase({
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy !== null}
+            onClick={async () => {
+              const choice = window.prompt(
+                "Select Bulk Delete Target:\n1. Type 'all' to delete everything (Laws, Constitution, Chunks, and ATL datasets)\n2. Type 'laws' to delete statutory acts & chunks\n3. Type 'constitution' to delete Constitution only\n4. Type 'atl' to delete FBR/ATL datasets only\n\nType your choice below:"
+              );
+              if (!choice) return;
+              const normalized = choice.trim().toLowerCase();
+              if (!["all", "laws", "constitution", "atl"].includes(normalized)) {
+                alert("Invalid choice. Operation cancelled.");
+                return;
+              }
+              const confirmText = window.prompt(
+                `WARNING: You are about to permanently delete '${normalized}' RAG data.\nType 'DELETE' in uppercase to confirm:`
+              );
+              if (confirmText !== "DELETE") {
+                alert("Confirmation phrase did not match. Deletion cancelled.");
+                return;
+              }
+              setBusy({ id: "bulk", kind: "delete" });
+              setError(null);
+              try {
+                const res = await bulkDeleteRagData(normalized as "all" | "laws" | "constitution" | "atl");
+                if (res.ok) {
+                  alert(
+                    `Successfully deleted!\n- Documents: ${res.data?.deletedDocs ?? 0}\n- Chunks: ${res.data?.deletedChunks ?? 0}\n- ATL records: ${res.data?.deletedAtl ?? 0}`
+                  );
+                  window.location.reload();
+                } else {
+                  setError(res.error || "Bulk delete failed.");
+                }
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Bulk delete failed.");
+              } finally {
+                setBusy(null);
+              }
+            }}
+            className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 text-xs gap-1.5 shadow-xs"
+          >
+            {busy?.id === "bulk" ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+            Bulk Delete RAG Files
+          </Button>
+
           <Button asChild className="bg-[#0CA275] hover:bg-[#098862] text-white text-xs gap-1.5 shadow-xs">
             <Link href="/admin/knowledge-base/upload">
               <FileText className="size-3.5" />

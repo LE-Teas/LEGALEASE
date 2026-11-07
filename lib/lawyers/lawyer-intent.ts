@@ -6,7 +6,7 @@
  */
 
 import { z } from "zod";
-import { chatCompletion } from "@/lib/ai/openrouter";
+import { chatCompletion } from "@/lib/ai/gemini";
 import type { QueryClassification } from "@/lib/rag/classifier";
 
 export const lawyerIntentSchema = z.object({

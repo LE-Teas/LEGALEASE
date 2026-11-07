@@ -130,7 +130,7 @@ export function ModelRouterSettingsClient({
 
   const totalWeights = relWeight + ratingWeight + expWeight + feeWeight + locWeight;
 
-  // Handle refresh OpenRouter catalog
+  // Handle refresh AI models catalog
   const handleRefreshCatalog = async () => {
     setRefreshingCatalog(true);
     try {
@@ -279,7 +279,7 @@ export function ModelRouterSettingsClient({
 
   return (
     <div className="space-y-8">
-      {/* ── Section 1: OpenRouter Free Model Router ───────────────────────── */}
+      {/* ── Section 1: LegalEase AI Model Router ───────────────────────── */}
       <Card className="border-slate-200">
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -289,7 +289,7 @@ export function ModelRouterSettingsClient({
               </div>
               <div>
                 <CardTitle className="font-heading text-lg text-navy">
-                  OpenRouter Free Model Router
+                  LegalEase Free AI Model Router
                 </CardTitle>
                 <CardDescription className="text-xs">
                   Zero-inference-cost routing with multi-tier fallback and server-side model discovery.
@@ -307,7 +307,7 @@ export function ModelRouterSettingsClient({
             >
               {refreshingCatalog ? (
                 <>
-                  <Loader2 className="size-3.5 mr-1.5 animate-spin" /> Querying OpenRouter...
+                  <Loader2 className="size-3.5 mr-1.5 animate-spin" /> Querying Catalog...
                 </>
               ) : (
                 <>
@@ -342,7 +342,7 @@ export function ModelRouterSettingsClient({
                   className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-navy"
                 >
                   <option value="auto_free">Automatic LegalEase Free Router (Recommended)</option>
-                  <option value="openrouter_free">OpenRouter Direct Free Gateway</option>
+                  <option value="openrouter_free">Direct Free Gateway</option>
                   <option value="manual">Manual Model Override</option>
                 </select>
                 <p className="text-[11px] text-muted-foreground">
@@ -450,7 +450,7 @@ export function ModelRouterSettingsClient({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <CardTitle className="font-heading text-base text-navy flex items-center gap-2">
-                <Cpu className="size-4 text-teal" /> Discovered Free OpenRouter Models
+                <Cpu className="size-4 text-teal" /> Discovered Free AI Models
               </CardTitle>
               <CardDescription className="text-xs">
                 Inspect capabilities, measured latency, LegalEase evaluation scores, and toggle exclusions.

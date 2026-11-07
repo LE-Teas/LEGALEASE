@@ -7,7 +7,7 @@
  * CRITICAL ARCHITECTURAL CONSTRAINTS (per RAG_Filer.md):
  * 1. Filer status is NEVER determined by an LLM or semantic RAG.
  * 2. Filer records are NOT stored in pgvector.
- * 3. Citizen CNICs are NEVER sent to OpenRouter.
+ * 3. Citizen CNICs are NEVER sent to external AI services.
  * 4. The entire dataset is NEVER sent to the browser.
  * 5. Not Found is explicitly NOT classified as Non-Filer.
  */

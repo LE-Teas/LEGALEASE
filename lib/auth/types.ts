@@ -19,6 +19,15 @@ export interface Profile {
   area?: string | null;
   avatar_url: string | null;
   is_active?: boolean;
+  notification_preferences?: {
+    email_appointments?: boolean;
+    email_payments?: boolean;
+    email_reviews?: boolean;
+    email_system?: boolean;
+    weekly_digest?: boolean;
+    email_marketing?: boolean;
+    in_app_all?: boolean;
+  };
   created_at: string;
   updated_at: string;
 }

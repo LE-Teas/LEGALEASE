@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
   title: "AI & RAG Management | Admin Portal",
-  description: "Centralized legal knowledge base, pgvector retrieval, and OpenRouter AI engine management.",
+  description: "Centralized legal knowledge base, pgvector retrieval, and LegalEase AI engine management.",
   robots: { index: false },
 };
 
@@ -90,7 +90,7 @@ export default async function AdminAiDashboardPage() {
     : null) as RoutingConfigRow | null;
 
   const activeDataset = filerDatasets.find((d) => d.status === "active");
-  const primaryRoutingModel = dbRoutingConfig?.primary_model || cfg.openRouterModel;
+  const primaryRoutingModel = dbRoutingConfig?.primary_model || cfg.geminiModel || "gemini-3.5-flash";
   const routingMode = dbRoutingConfig?.routing_mode || "auto_free";
 
   const stats = {
@@ -104,7 +104,7 @@ export default async function AdminAiDashboardPage() {
     totalChunks,
   };
 
-  const generationModel = dbAiSettings?.generation_model || cfg.openRouterModel;
+  const generationModel = dbAiSettings?.generation_model || cfg.geminiModel || "gemini-3.5-flash";
   const embeddingModel = dbAiSettings?.embedding_model || cfg.embeddingModel;
   const ragEnabled = dbAiSettings?.rag_enabled ?? true;
   const maintenanceMode = dbAiSettings?.maintenance_mode ?? false;
@@ -123,7 +123,7 @@ export default async function AdminAiDashboardPage() {
             </h1>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Grounded RAG architecture, verified Pakistani statutes, vector index health, and OpenRouter gateway.
+            Grounded RAG architecture, verified Pakistani statutes, vector index health, and LegalEase AI engine.
           </p>
         </div>
 
@@ -296,7 +296,7 @@ export default async function AdminAiDashboardPage() {
             </div>
             <CardTitle className="font-heading text-base text-navy">AI Settings & Testing</CardTitle>
             <CardDescription className="text-xs">
-              Configure OpenRouter generation models, retrieval top-k, similarity thresholds, and test queries in the live diagnostic workbench.
+              Configure LegalEase AI generation models, retrieval top-k, similarity thresholds, and test queries in the live diagnostic workbench.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0 flex flex-col gap-2">

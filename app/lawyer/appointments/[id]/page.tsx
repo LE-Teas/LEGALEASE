@@ -12,17 +12,16 @@ import {
   Video,
   XCircle,
   Star,
-  ShieldCheck,
 } from "lucide-react";
 import { getAuthState } from "@/lib/auth/profile";
 import { getAppointmentById } from "@/lib/services/appointments";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { AppointmentDecisionButtons } from "@/components/lawyer/appointment-decision-buttons";
 import { JoinVideoButton } from "@/components/video/join-video-button";
 import { ConsultationNotesCard } from "@/components/lawyer/consultation-notes-card";
+import { AppointmentMessagesCard } from "@/components/dashboard/appointment-messages-card";
 
 export const metadata = {
   title: "Appointment Details | Lawyer Portal | LegalEase",
@@ -361,6 +360,15 @@ export default async function LawyerAppointmentDetailPage({
           <ConsultationNotesCard
             appointmentId={appointment.id}
             initialNotes={appointment.lawyer_notes}
+          />
+        </div>
+
+        {/* Citizen-Advocate Direct Messaging Thread */}
+        <div className="lg:col-span-2">
+          <AppointmentMessagesCard
+            appointmentId={appointment.id}
+            currentUserId={user.id}
+            counterpartyName={citizen?.full_name || "Client"}
           />
         </div>
       </div>

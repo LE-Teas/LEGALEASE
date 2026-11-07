@@ -4,12 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  AlertTriangle,
   BarChart3,
   Bell,
   BookOpen,
   CalendarClock,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -24,7 +22,6 @@ import {
   LogOut,
   Megaphone,
   Menu,
-  Scale,
   Search,
   Settings,
   ShieldCheck,
@@ -58,8 +55,11 @@ const citizenNav: NavItem[] = [
   { title: "Find Lawyers", href: "/citizen/lawyers", icon: Search },
   { title: "Appointments", href: "/citizen/appointments", icon: CalendarClock },
   { title: "Documents", href: "/citizen/documents", icon: FileText },
-  { title: "Legal Resources", href: "/citizen/resources", icon: BookOpen },
+  { title: "My Files", href: "/citizen/files", icon: FileSearch, badge: "Vault" },
+  { title: "Filer Status (ATL)", href: "/citizen/filer-status", icon: Database },
+  { title: "Payments", href: "/citizen/payments", icon: CreditCard },
   { title: "Notifications", href: "/citizen/notifications", icon: Bell },
+  { title: "Support & Help", href: "/citizen/support", icon: HelpCircle },
   { title: "Profile", href: "/citizen/profile", icon: User },
   { title: "Settings", href: "/citizen/settings", icon: Settings },
 ];
@@ -88,9 +88,9 @@ const adminNav: NavItem[] = [
   { title: "AI Engine & Routing", href: "/admin/ai", icon: Sparkles },
   { title: "AI Testing & Debug", href: "/admin/ai/testing", icon: Search },
   { title: "Filer Status (ATL)", href: "/admin/filer-status", icon: Database },
-  { title: "Legal Resources", href: "/admin/resources", icon: FileText },
   { title: "Payments & Fees", href: "/admin/payments", icon: Wallet },
   { title: "Reviews Moderation", href: "/admin/reviews", icon: Star },
+  { title: "Support Desk", href: "/admin/support", icon: HelpCircle },
   { title: "Platform Notifications", href: "/admin/notifications", icon: Megaphone },
   { title: "Reports & Analytics", href: "/admin/reports", icon: BarChart3 },
   { title: "Platform Settings", href: "/admin/settings", icon: Settings },
@@ -323,7 +323,7 @@ export function DashboardShell({ profile, children }: DashboardShellProps) {
               <Menu className="size-5" />
               <span className="sr-only">Toggle navigation menu</span>
             </Button>
-            
+
             {/* Breadcrumb Navigation */}
             <div className="flex items-center gap-2 text-xs">
               <Link href={profile.role === "admin" ? "/admin" : `/${profile.role}/dashboard`} className="font-semibold text-slate-500 hover:text-[#0A2843]">

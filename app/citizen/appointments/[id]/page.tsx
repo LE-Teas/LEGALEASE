@@ -5,7 +5,6 @@ import {
   Building2,
   Calendar,
   Clock,
-  FileText,
   MapPin,
   Phone,
   ShieldCheck,
@@ -13,10 +12,10 @@ import {
   Video,
   Star,
   CheckCircle2,
-  AlertTriangle,
 } from "lucide-react";
 import { getAuthState } from "@/lib/auth/profile";
 import { getAppointmentById } from "@/lib/services/appointments";
+import { verifyStripeCheckoutSessionOnReturn } from "@/lib/services/stripe";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,19 +24,29 @@ import { AppointmentActions } from "@/components/citizen/appointment-actions";
 import { formatRate } from "@/lib/data/lawyers";
 import { JoinVideoButton } from "@/components/video/join-video-button";
 import { ConsultationPaymentCard } from "@/components/citizen/consultation-payment-card";
+import { AppointmentMessagesCard } from "@/components/dashboard/appointment-messages-card";
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ payment?: string; session_id?: string }>;
 }
 
 export const metadata = {
   title: "Appointment Details | Citizen Portal | LegalEase",
 };
 
-export default async function CitizenAppointmentDetailPage({ params }: PageProps) {
+export default async function CitizenAppointmentDetailPage({
+  params,
+  searchParams,
+}: PageProps) {
   const { id } = await params;
+  const resolvedSearch = searchParams ? await searchParams : {};
   const { user } = await getAuthState();
   if (!user) return null;
+
+  if (resolvedSearch?.session_id) {
+    await verifyStripeCheckoutSessionOnReturn(resolvedSearch.session_id, id);
+  }
 
   const appt = await getAppointmentById(id, user.id);
   if (!appt || appt.citizen_id !== user.id) {
@@ -308,6 +317,13 @@ export default async function CitizenAppointmentDetailPage({ params }: PageProps
           </div>
         </CardContent>
       </Card>
+
+      {/* Citizen-Advocate Direct Messaging Thread */}
+      <AppointmentMessagesCard
+        appointmentId={appt.id}
+        currentUserId={user.id}
+        counterpartyName={appt.lawyer?.full_name || "Advocate"}
+      />
     </div>
   );
 }

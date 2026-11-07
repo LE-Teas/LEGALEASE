@@ -5,13 +5,13 @@ import "./globals.css";
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 const montserrat = Montserrat({
   variable: "--font-montserrat",
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  display: "swap",
 });
 
 const siteUrl =
@@ -54,6 +54,73 @@ export const metadata: Metadata = {
   },
 };
 
+const EXTENSION_CLEANUP_SCRIPT = `(function(){
+  try {
+    // 1. Prevent crashing if injected extension content scripts throw unhandled errors
+    if (typeof window !== "undefined") {
+      window.addEventListener("error", function(evt) {
+        if (
+          evt.filename &&
+          (evt.filename.indexOf("chrome-extension://") === 0 ||
+           evt.filename.indexOf("moz-extension://") === 0 ||
+           evt.filename.indexOf("eppiocemhmnlbhjplcgkofciiegomcon") !== -1)
+        ) {
+          evt.preventDefault();
+          evt.stopImmediatePropagation();
+        }
+      }, true);
+    }
+
+    // 2. Safe attribute cleaner for DOM nodes
+    var isExtAttr = function(name) {
+      return (
+        name === "bis_skin_checked" ||
+        name === "bis_register" ||
+        name === "cz-shortcut-listen" ||
+        name === "data-new-gr-c-s-check-loaded" ||
+        name === "data-gr-ext-installed" ||
+        name.indexOf("bis_") === 0 ||
+        name.indexOf("__processed_") === 0
+      );
+    };
+
+    var cleanElement = function(el) {
+      if (!el || !el.removeAttribute) return;
+      var attrs = el.attributes;
+      if (!attrs) return;
+      for (var i = attrs.length - 1; i >= 0; i--) {
+        var attr = attrs[i];
+        if (attr && isExtAttr(attr.name)) {
+          el.removeAttribute(attr.name);
+        }
+      }
+    };
+
+    cleanElement(document.documentElement);
+
+    if (typeof MutationObserver !== "undefined") {
+      var observer = new MutationObserver(function(mutations) {
+        for (var i = 0; i < mutations.length; i++) {
+          var m = mutations[i];
+          if (m.type === "attributes" && m.attributeName && isExtAttr(m.attributeName)) {
+            m.target.removeAttribute(m.attributeName);
+          } else if (m.type === "childList" && m.addedNodes) {
+            for (var j = 0; j < m.addedNodes.length; j++) {
+              var node = m.addedNodes[j];
+              if (node && node.nodeType === 1) cleanElement(node);
+            }
+          }
+        }
+      });
+      observer.observe(document.documentElement, {
+        attributes: true,
+        childList: true,
+        subtree: true
+      });
+    }
+  } catch (e) {}
+})();`;
+
 export default function RootLayout({
   children,
 }: {
@@ -64,8 +131,20 @@ export default function RootLayout({
       lang="en"
       data-scroll-behavior="smooth"
       className={`${inter.variable} ${montserrat.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="flex min-h-full flex-col font-sans">{children}</body>
+      <head>
+        <script
+          id="legalease-ext-cleanup"
+          dangerouslySetInnerHTML={{ __html: EXTENSION_CLEANUP_SCRIPT }}
+        />
+      </head>
+      <body
+        className="flex min-h-full flex-col font-sans"
+        suppressHydrationWarning
+      >
+        {children}
+      </body>
     </html>
   );
 }

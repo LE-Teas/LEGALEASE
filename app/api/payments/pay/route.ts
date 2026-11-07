@@ -11,7 +11,10 @@ export async function POST(request: Request) {
     }
 
     if (profile.role !== "citizen") {
-      return NextResponse.json({ error: "Only citizens can complete consultation payments" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Only citizens can complete consultation payments" },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();
@@ -21,10 +24,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing appointmentId" }, { status: 400 });
     }
 
+    const originUrl = new URL(request.url).origin;
+
     const result = await processAppointmentPayment(
       appointmentId,
       user.id,
-      paymentMethod || "jazzcash_escrow"
+      paymentMethod || "stripe_card",
+      originUrl
     );
 
     if (!result.success) {
@@ -34,8 +40,13 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       payment: result.payment,
+      checkoutUrl: result.checkoutUrl,
+      mode: result.mode,
     });
   } catch (err) {
-    return NextResponse.json({ error: getErrorMessage(err) || "Payment processing failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: getErrorMessage(err) || "Payment processing failed" },
+      { status: 500 }
+    );
   }
 }

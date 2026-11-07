@@ -71,7 +71,7 @@ export async function retrieveLegalChunks(
   supabase: SupabaseClient,
   options: RetrieveOptions
 ): Promise<RetrievedChunk[]> {
-  const fn = options.debug ? "match_legal_chunks_debug" : "match_legal_chunks";
+  const primaryFn = options.debug ? "match_legal_chunks_debug" : "match_legal_chunks";
 
   const params: Record<string, unknown> = {
     query_embedding: vectorLiteral(options.queryEmbedding),
@@ -83,7 +83,14 @@ export async function retrieveLegalChunks(
     p_document_id: options.documentId ?? null,
   };
 
-  const { data, error } = await supabase.rpc(fn, params);
+  let { data, error } = await supabase.rpc(primaryFn, params);
+
+  // Gracefully fallback to match_legal_chunks if match_legal_chunks_debug is missing in schema cache
+  if (error && options.debug && (error.code === "PGRST202" || /match_legal_chunks_debug/i.test(error.message))) {
+    const fallback = await supabase.rpc("match_legal_chunks", params);
+    data = fallback.data;
+    error = fallback.error;
+  }
   if (error) {
     throw new Error(
       `Retrieval failed: ${error.message}${

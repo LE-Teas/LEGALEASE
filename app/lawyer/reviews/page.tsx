@@ -1,9 +1,9 @@
 import { getAuthState } from "@/lib/auth/profile";
 import { getLawyerReviews } from "@/lib/services/reviews";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Star, MessageSquare, Award, ThumbsUp } from "lucide-react";
+import { ReviewResponseActions } from "@/components/lawyer/review-response-actions";
+import { Star, MessageSquare } from "lucide-react";
 
 export const metadata = {
   title: "Client Reviews | Lawyer Portal",
@@ -35,7 +35,7 @@ export default async function LawyerReviewsPage() {
           Client Reviews & Ratings
         </h2>
         <p className="text-sm text-muted-foreground">
-          Verified feedback submitted by citizens following completed consultations.
+          Verified feedback submitted by citizens following completed consultations. You can post official replies or flag reviews for moderation.
         </p>
       </div>
 
@@ -177,6 +177,13 @@ export default async function LawyerReviewsPage() {
                         &ldquo;{r.comment}&rdquo;
                       </p>
                     )}
+
+                    <ReviewResponseActions
+                      reviewId={r.id}
+                      initialResponse={r.lawyer_response}
+                      initialFlagged={r.is_flagged}
+                      initialFlagReason={r.flag_reason}
+                    />
                   </CardContent>
                 </Card>
               );

@@ -3,7 +3,14 @@
 import { useState } from "react";
 import { getErrorMessage } from "@/lib/errors";
 import { useRouter } from "next/navigation";
-import { CreditCard, ShieldCheck, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import {
+  CreditCard,
+  ShieldCheck,
+  Loader2,
+  AlertCircle,
+  ExternalLink,
+  CheckCircle2,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -19,9 +26,12 @@ export function ConsultationPaymentCard({ appointment }: ConsultationPaymentCard
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState("jazzcash_escrow");
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState("stripe_card");
 
-  const isVideo = appointment.consultation_type === "video";
+  const isVideo =
+    appointment.consultation_type === "video" ||
+    appointment.consultation_type === "phone";
   const isPaid = appointment.payment_status === "paid";
   const isConfirmed = appointment.status === "confirmed";
 
@@ -32,6 +42,7 @@ export function ConsultationPaymentCard({ appointment }: ConsultationPaymentCard
   const handlePay = async () => {
     setLoading(true);
     setError(null);
+    setSuccessMsg(null);
     try {
       const res = await fetch("/api/payments/pay", {
         method: "POST",
@@ -47,6 +58,14 @@ export function ConsultationPaymentCard({ appointment }: ConsultationPaymentCard
         throw new Error(data.error || "Payment transaction could not be completed.");
       }
 
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+
+      setSuccessMsg(
+        "Stripe Sandbox webhook signature verified! Escrow payment confirmed and video room unlocked."
+      );
       router.refresh();
     } catch (err) {
       setError(getErrorMessage(err) || "Failed to process payment");
@@ -67,15 +86,16 @@ export function ConsultationPaymentCard({ appointment }: ConsultationPaymentCard
             </span>
             <div>
               <h3 className="font-heading text-base font-bold text-[#0d2b43]">
-                Advocate Accepted · Complete Escrow Payment
+                Advocate Accepted · Complete Stripe Sandbox Escrow Checkout
               </h3>
               <p className="text-xs text-slate-600">
-                Your advocate has confirmed this {appointment.duration_minutes || 60}-minute video consultation. Secure payment to unlock the video chamber.
+                Your advocate has confirmed this {appointment.duration_minutes || 60}-minute
+                consultation. Complete checkout via Stripe Sandbox to unlock the video chamber.
               </p>
             </div>
           </div>
           <Badge className="bg-[#0fa176] text-white font-bold text-xs py-1 px-3">
-            Payment Required
+            Stripe Sandbox Escrow
           </Badge>
         </div>
 
@@ -86,10 +106,19 @@ export function ConsultationPaymentCard({ appointment }: ConsultationPaymentCard
           </Alert>
         )}
 
+        {successMsg && (
+          <Alert className="border-emerald-300 bg-emerald-50 text-emerald-900">
+            <CheckCircle2 className="size-4 text-emerald-600" />
+            <AlertDescription>{successMsg}</AlertDescription>
+          </Alert>
+        )}
+
         {/* Transparent Breakdown */}
         <div className="grid sm:grid-cols-3 gap-3 bg-white p-3.5 rounded-xl border border-slate-200 text-xs">
           <div>
-            <span className="text-muted-foreground">Advocate Fee ({appointment.duration_minutes || 60}m):</span>
+            <span className="text-muted-foreground">
+              Advocate Fee ({appointment.duration_minutes || 60}m):
+            </span>
             <p className="font-bold text-slate-800 text-sm mt-0.5">
               {formatRate(appointment.consultation_fee)}
             </p>
@@ -97,7 +126,9 @@ export function ConsultationPaymentCard({ appointment }: ConsultationPaymentCard
           <div>
             <span className="text-muted-foreground">Platform Protection (10%):</span>
             <p className="font-bold text-slate-800 text-sm mt-0.5">
-              {formatRate(appointment.platform_fee || Math.round(appointment.consultation_fee * 0.1))}
+              {formatRate(
+                appointment.platform_fee || Math.round(appointment.consultation_fee * 0.1)
+              )}
             </p>
           </div>
           <div>
@@ -110,14 +141,19 @@ export function ConsultationPaymentCard({ appointment }: ConsultationPaymentCard
 
         {/* Payment Method Selector */}
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-slate-700">
-            Select Escrow Payment Method (Pakistan)
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-slate-700">
+              Select Stripe Sandbox Checkout Method
+            </label>
+            <span className="font-mono text-[11px] text-slate-500">
+              Test Card: 4242 •••• •••• 4242
+            </span>
+          </div>
           <div className="grid grid-cols-3 gap-2">
             {[
-              { id: "jazzcash_escrow", label: "JazzCash" },
-              { id: "easypaisa_escrow", label: "EasyPaisa" },
-              { id: "bank_escrow", label: "1Link Bank Payout" },
+              { id: "stripe_card", label: "Stripe Card (Visa / Mastercard)" },
+              { id: "stripe_wallet", label: "Apple Pay / Google Pay" },
+              { id: "stripe_link", label: "Stripe Link Instant Pay" },
             ].map((method) => (
               <button
                 key={method.id}
@@ -138,7 +174,7 @@ export function ConsultationPaymentCard({ appointment }: ConsultationPaymentCard
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
           <span className="text-[11px] text-slate-600 flex items-center gap-1.5">
             <ShieldCheck className="size-4 text-[#0fa176] shrink-0" />
-            Funds held securely in escrow until consultation completion.
+            Verified via Stripe-Signature HMAC-SHA256 webhook. Held in escrow until completion.
           </span>
 
           <Button
@@ -149,12 +185,12 @@ export function ConsultationPaymentCard({ appointment }: ConsultationPaymentCard
             {loading ? (
               <>
                 <Loader2 className="mr-1.5 size-4 animate-spin" />
-                Securing Escrow…
+                Processing Stripe Sandbox Checkout…
               </>
             ) : (
               <>
-                <CreditCard className="mr-1.5 size-4" />
-                Pay {formatRate(totalPayable)} & Unlock Chamber
+                <ExternalLink className="mr-1.5 size-4" />
+                Pay {formatRate(totalPayable)} via Stripe Sandbox
               </>
             )}
           </Button>

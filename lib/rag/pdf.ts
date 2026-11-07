@@ -7,6 +7,7 @@
  * that and mark the document as requiring OCR.
  */
 
+import path from "node:path";
 import type { ExtractedPage } from "@/lib/rag/chunking";
 
 export class PdfExtractionError extends Error {
@@ -42,14 +43,30 @@ function itemToText(item: { str?: string; hasEOL?: boolean }): string {
 export async function extractPdfFromBuffer(buffer: Uint8Array): Promise<PdfExtractionResult> {
   const pdfjs = await loadPdfjs();
 
-  let doc: { numPages: number; getPage(i: number): Promise<unknown>; destroy(): Promise<void> } | null = null;
+  // Resolve standard fonts directory for Node.js environment
+  const standardFontDataUrl =
+    path.resolve(process.cwd(), "node_modules/pdfjs-dist/standard_fonts/").replace(/\\/g, "/") + "/";
+
+  let doc: Record<string, unknown> | null = null;
+
   try {
-    const loaded = await pdfjs.getDocument({
+    const loadingTask = (pdfjs as unknown as {
+      getDocument(params: Record<string, unknown>): {
+        promise: Promise<{
+          numPages: number;
+          getPage(i: number): Promise<{ getTextContent(): Promise<{ items: unknown[] }> }>;
+          cleanup?(): Promise<void> | void;
+          destroy?(): Promise<void> | void;
+        }>;
+      };
+    }).getDocument({
       data: buffer,
       useWorkerFetch: false,
       isEvalSupported: false,
-    }).promise;
-    doc = loaded;
+      standardFontDataUrl,
+    });
+    const loaded = await loadingTask.promise;
+    doc = loaded as unknown as Record<string, unknown>;
 
     const pages: ExtractedPage[] = [];
     let charCount = 0;
@@ -87,7 +104,15 @@ export async function extractPdfFromBuffer(buffer: Uint8Array): Promise<PdfExtra
       "extraction"
     );
   } finally {
-    await doc?.destroy().catch(() => undefined);
+    try {
+      if (doc && typeof (doc as { cleanup?: () => unknown }).cleanup === "function") {
+        await (doc as { cleanup: () => Promise<void> | void }).cleanup();
+      } else if (doc && typeof (doc as { destroy?: () => unknown }).destroy === "function") {
+        await (doc as { destroy: () => Promise<void> | void }).destroy();
+      }
+    } catch {
+      // Ignore cleanup error
+    }
   }
 }
 

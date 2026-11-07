@@ -6,6 +6,12 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "100mb",
+    },
+    proxyClientMaxBodySize: "100mb",
+  },
   poweredByHeader: false,
   // pdfjs-dist must load in Node (not bundled) for server-side PDF extraction.
   serverExternalPackages: ["pdfjs-dist"],

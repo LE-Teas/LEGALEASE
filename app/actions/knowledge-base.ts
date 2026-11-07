@@ -9,20 +9,24 @@ import { getAuthState } from "@/lib/auth/profile";
 import { extractPdfFromBuffer, PdfExtractionError } from "@/lib/rag/pdf";
 import { processDocumentText } from "@/lib/rag/pipeline";
 
-export interface AdminActionResult {
+export interface AdminActionResult<T = unknown> {
   ok: boolean;
   error?: string;
+  data?: T;
 }
 
 const idSchema = z.uuid();
 
-async function requireAdmin(): Promise<{ ok: false; error: string } | { ok: true }> {
+async function requireAdmin(): Promise<
+  | { ok: false; error: string }
+  | { ok: true; user: NonNullable<Awaited<ReturnType<typeof getAuthState>>["user"]> }
+> {
   const { user, profile } = await getAuthState();
   if (!user) return { ok: false, error: "You must be signed in." };
   if (!profile || profile.role !== "admin") {
     return { ok: false, error: "Admin access required." };
   }
-  return { ok: true };
+  return { ok: true, user };
 }
 
 export async function verifyDocument(id: string): Promise<AdminActionResult> {
@@ -107,6 +111,96 @@ export async function deleteDocument(id: string): Promise<AdminActionResult> {
 
   revalidatePath("/admin/knowledge-base");
   return { ok: true };
+}
+
+/**
+ * Bulk delete RAG knowledge base data.
+ * target:
+ *  - "all": Deletes all legal documents, chunks, and tax/ATL datasets
+ *  - "laws": Deletes all federal/provincial statutory acts and their chunks
+ *  - "constitution": Deletes specifically constitutional documents and chunks
+ *  - "atl": Deletes all taxpayer/ATL datasets and records
+ */
+export async function bulkDeleteRagData(
+  target: "all" | "laws" | "constitution" | "atl" = "all"
+): Promise<AdminActionResult<{ deletedDocs: number; deletedChunks: number; deletedAtl: number }>> {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard;
+
+  const admin = createAdminClient();
+  if (!admin) return { ok: false, error: "Service role client unavailable." };
+
+  try {
+    let deletedDocs = 0;
+    let deletedChunks = 0;
+    let deletedAtl = 0;
+
+    // 1. Delete ATL / Filer datasets and records
+    if (target === "all" || target === "atl") {
+      const { count: atlRecordsCount } = await admin
+        .from("filer_records")
+        .select("*", { count: "exact", head: true });
+      deletedAtl = atlRecordsCount ?? 0;
+
+      await admin.from("filer_records").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      await admin.from("filer_datasets").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    }
+
+    // 2. Delete Legal Documents & Chunks
+    if (target === "all" || target === "laws" || target === "constitution") {
+      let query = admin.from("legal_documents").select("id, storage_path, title, category");
+      if (target === "constitution") {
+        query = query.or("category.eq.constitution,title.ilike.%constitution%");
+      } else if (target === "laws") {
+        query = query.not("category", "eq", "constitution");
+      }
+
+      const { data: docsToDelete, error: fetchErr } = await query;
+      if (fetchErr) throw fetchErr;
+
+      const docIds = (docsToDelete ?? []).map((d) => d.id);
+      deletedDocs = docIds.length;
+
+      if (docIds.length > 0) {
+        // Best effort storage cleanup
+        const paths = (docsToDelete ?? []).map((d) => d.storage_path).filter(Boolean) as string[];
+        if (paths.length > 0) {
+          try {
+            await admin.storage.from("legal-documents").remove(paths);
+          } catch {
+            /* ignore storage cleanup errors */
+          }
+        }
+
+        const { count: chunksCount } = await admin
+          .from("legal_chunks")
+          .select("*", { count: "exact", head: true })
+          .in("document_id", docIds);
+        deletedChunks = chunksCount ?? 0;
+
+        await admin.from("legal_chunks").delete().in("document_id", docIds);
+        await admin.from("legal_documents").delete().in("id", docIds);
+      }
+    }
+
+    await admin.from("admin_audit_logs").insert({
+      admin_id: guard.user.id,
+      action: "rag_bulk_delete",
+      entity_type: "knowledge_base",
+      metadata: { target, deletedDocs, deletedChunks, deletedAtl },
+    });
+
+    revalidatePath("/admin/knowledge-base");
+    revalidatePath("/admin/filer-status");
+    revalidatePath("/admin/ai");
+    return {
+      ok: true,
+      data: { deletedDocs, deletedChunks, deletedAtl },
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Bulk delete failed.";
+    return { ok: false, error: message };
+  }
 }
 
 /**

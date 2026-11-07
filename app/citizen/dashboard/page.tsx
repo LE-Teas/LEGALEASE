@@ -1,22 +1,17 @@
 import Link from "next/link";
 import {
-  ArrowRight,
   BookOpen,
   Calendar,
   CalendarClock,
-  CheckCircle2,
   Clock,
   Compass,
   FilePlus2,
-  FileSearch,
   FileText,
-  MapPin,
   MessageSquare,
-  Scale,
   Search,
   Sparkles,
+  Star,
   Users,
-  Video,
 } from "lucide-react";
 import { getAuthState } from "@/lib/auth/profile";
 import { getCitizenAppointments } from "@/lib/services/appointments";
@@ -64,6 +59,10 @@ export default async function CitizenDashboardPage() {
     .filter((a) => (a.status === "confirmed" || a.status === "pending") && a.appointment_date >= todayStr)
     .slice(0, 3);
 
+  const unratedCompletedAppointments = appointments.filter(
+    (a) => a.status === "completed" && !a.rating_submitted
+  );
+
   // Time-of-day greeting
   const currentHour = new Date().getHours();
   const timeGreeting =
@@ -71,6 +70,44 @@ export default async function CitizenDashboardPage() {
 
   return (
     <div className="space-y-8">
+      {/* Mandatory Post-Consultation Rating Banner */}
+      {unratedCompletedAppointments.length > 0 && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-500 text-white">
+                <Star className="size-5 fill-white" />
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-heading text-sm font-bold text-amber-950">
+                    Mandatory Consultation Feedback Required ({unratedCompletedAppointments.length})
+                  </p>
+                  <Badge className="bg-amber-600 text-white text-[10px]">Action Required</Badge>
+                </div>
+                <p className="mt-0.5 text-xs text-amber-900">
+                  Please submit your mandatory 1–5 star rating for your completed consultation with{" "}
+                  <span className="font-semibold">
+                    {unratedCompletedAppointments[0].lawyer?.full_name || "Advocate"}
+                  </span>{" "}
+                  ({unratedCompletedAppointments[0].subject}) to finalize consultation feedback records.
+                </p>
+              </div>
+            </div>
+            <Button
+              asChild
+              size="sm"
+              className="shrink-0 bg-amber-600 text-white hover:bg-amber-700 text-xs font-semibold"
+            >
+              <Link href={`/citizen/appointments/${unratedCompletedAppointments[0].id}`}>
+                <Star className="mr-1.5 size-3.5" />
+                Submit Rating Now
+              </Link>
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Welcome Banner */}
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
@@ -98,7 +135,7 @@ export default async function CitizenDashboardPage() {
       </div>
 
       {/* Quick Action Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Link href="/citizen/ai-assistant" className="group">
           <Card className="h-full border-teal/30 bg-teal-soft/20 transition-all hover:-translate-y-0.5 hover:border-teal/60 hover:shadow-md">
             <CardContent className="flex flex-col justify-between p-5">
@@ -156,27 +193,6 @@ export default async function CitizenDashboardPage() {
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Create formal notices, affidavits, undertakings, and agreements.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href="/citizen/resources" className="group">
-          <Card className="h-full transition-all hover:-translate-y-0.5 hover:border-navy/40 hover:shadow-md">
-            <CardContent className="flex flex-col justify-between p-5">
-              <div className="flex items-center justify-between">
-                <span className="flex size-10 items-center justify-center rounded-lg bg-slate-100 text-slate-800">
-                  <BookOpen className="size-5" />
-                </span>
-                <Badge variant="outline" className="text-[10px]">Guides</Badge>
-              </div>
-              <div className="mt-4">
-                <p className="font-heading font-semibold text-navy group-hover:text-navy/80">
-                  Legal Resources
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Understand your constitutional, tenancy, criminal, and civil rights.
                 </p>
               </div>
             </CardContent>
@@ -344,6 +360,7 @@ export default async function CitizenDashboardPage() {
                             startTime={appt.start_time}
                             endTime={appt.end_time}
                             href={`/citizen/video/${appt.id}`}
+                            paymentStatus={appt.payment_status}
                           />
                         )}
                         <Button asChild size="sm" variant="outline" className="text-xs">

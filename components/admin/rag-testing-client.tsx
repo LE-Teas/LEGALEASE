@@ -69,7 +69,7 @@ export function RagTestingClient() {
             Enter Test Legal Query
           </CardTitle>
           <CardDescription className="text-xs">
-            Run complete query classification, pgvector chunk retrieval, context sufficiency checks, and OpenRouter grounded completion.
+            Run complete query classification, pgvector chunk retrieval, context sufficiency checks, and LegalEase AI grounded completion.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -186,7 +186,7 @@ export function RagTestingClient() {
               <div>
                 <CardTitle className="font-heading text-base text-navy flex items-center gap-2">
                   <CheckCircle2 className="size-4 text-emerald-600" />
-                  Grounded Legal Response (OpenRouter)
+                  Grounded Legal Response (LegalEase AI)
                 </CardTitle>
                 <CardDescription className="text-xs">
                   Generated solely from the retrieved verified legal knowledge chunks below.

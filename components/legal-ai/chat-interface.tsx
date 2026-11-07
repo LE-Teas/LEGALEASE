@@ -1,21 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { getErrorMessage } from "@/lib/errors";
 import {
   ArrowUp,
-  Bot,
-  CalendarClock,
-  Compass,
+  FileSearch,
   FileText,
-  Landmark,
+  Lock,
   MessageSquare,
   MessageSquareText,
   Plus,
   Scale,
-  Search,
   ShieldCheck,
-  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
@@ -26,6 +23,7 @@ import type {
   UiSource,
   UiStructuredResponse,
 } from "@/lib/legal-ai/types";
+import type { CitizenFile } from "@/lib/types/legal";
 import { Message } from "@/components/legal-ai/message";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -81,15 +79,24 @@ const LEGAL_TOPICS = [
   "Police FIR Procedure",
 ];
 
-export function ChatInterface() {
+interface ChatInterfaceProps {
+  initialConversationId?: string | null;
+  initialFileId?: string | null;
+}
+
+export function ChatInterface({
+  initialConversationId = null,
+  initialFileId = null,
+}: ChatInterfaceProps) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [citizenFiles, setCitizenFiles] = useState<CitizenFile[]>([]);
+  const [selectedFileId, setSelectedFileId] = useState<string | null>(initialFileId);
+  const [activeId, setActiveId] = useState<string | null>(initialConversationId);
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loadingConversation, setLoadingConversation] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [selectedJurisdiction, setSelectedJurisdiction] = useState("All Pakistan & Sindh");
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -104,9 +111,21 @@ export function ChatInterface() {
     }
   }, []);
 
+  const loadCitizenFiles = useCallback(async () => {
+    try {
+      const res = await fetch("/api/citizen/files", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = (await res.json()) as { files: CitizenFile[] };
+      setCitizenFiles(data.files ?? []);
+    } catch {
+      /* non-fatal */
+    }
+  }, []);
+
   useEffect(() => {
     loadConversations();
-  }, [loadConversations]);
+    loadCitizenFiles();
+  }, [loadConversations, loadCitizenFiles]);
 
   useEffect(() => {
     const container = scrollRef.current;
@@ -162,6 +181,12 @@ export function ChatInterface() {
     [activeId, messages.length]
   );
 
+  useEffect(() => {
+    if (initialConversationId) {
+      selectConversation(initialConversationId);
+    }
+  }, [initialConversationId, selectConversation]);
+
   const startNewConversation = useCallback(() => {
     setActiveId(null);
     setMessages([]);
@@ -207,7 +232,11 @@ export function ChatInterface() {
         const res = await fetch("/api/legal/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, conversation_id: activeId ?? undefined }),
+          body: JSON.stringify({
+            message,
+            conversation_id: activeId ?? undefined,
+            file_id: selectedFileId ?? undefined,
+          }),
         });
 
         if (res.status === 429) {
@@ -264,7 +293,7 @@ export function ChatInterface() {
         setSending(false);
       }
     },
-    [input, sending, activeId, loadConversations]
+    [input, sending, activeId, selectedFileId, loadConversations]
   );
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -273,6 +302,8 @@ export function ChatInterface() {
       sendMessage();
     }
   };
+
+  const activePrivateFile = citizenFiles.find((f) => f.id === selectedFileId) ?? null;
 
   return (
     <div className="flex h-[calc(100dvh-4rem)] overflow-hidden bg-[#F8FAFC]">
@@ -288,6 +319,50 @@ export function ChatInterface() {
             <Plus className="size-4 text-[#0fa176]" />
             New Legal Consultation
           </Button>
+        </div>
+
+        {/* File-Based vs Non-File RAG Selector */}
+        <div className="px-4 py-3 border-b border-slate-100 bg-emerald-50/40 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 flex items-center gap-1">
+              <FileSearch className="size-3 text-[#0fa176]" />
+              RAG Context Mode
+            </p>
+            <Link
+              href="/citizen/files"
+              className="text-[10px] font-semibold text-[#0fa176] hover:underline"
+            >
+              Manage Vault
+            </Link>
+          </div>
+          <select
+            value={selectedFileId || ""}
+            onChange={(e) => setSelectedFileId(e.target.value || null)}
+            className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-[#0fa176] focus:outline-none"
+          >
+            <option value="">General Legal Knowledge Base</option>
+            {citizenFiles.map((f) => (
+              <option key={f.id} value={f.id}>
+                [File Analysis] {f.file_name}
+              </option>
+            ))}
+          </select>
+          {activePrivateFile && (
+            <div className="flex items-center justify-between rounded-md bg-emerald-100/80 px-2 py-1 text-[10px] text-emerald-900">
+              <span className="truncate flex items-center gap-1 font-medium">
+                <Lock className="size-3 shrink-0 text-emerald-700" />
+                {activePrivateFile.file_name}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedFileId(null)}
+                className="ml-1 text-emerald-800 hover:text-rose-600"
+                title="Switch to General Legal Knowledge Base"
+              >
+                <X className="size-3" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Legal Topics Pills */}
@@ -380,16 +455,29 @@ export function ChatInterface() {
                   variant="outline"
                   className="hidden sm:inline-flex bg-[#ecfdf5] text-[#0fa176] border-[#0fa176]/40 text-[10px] font-semibold"
                 >
-                  Verified RAG v2.4
+                  {activePrivateFile ? "File-Based RAG Active" : "Verified RAG v2.4"}
                 </Badge>
               </div>
               <p className="text-xs text-slate-500">
-                Pakistan Code • Sindh Code • High Court & Statutory Precedents
+                {activePrivateFile
+                  ? `Analyzing Private File: ${activePrivateFile.file_name} + Pakistan Code`
+                  : "Pakistan Code • Sindh Code • High Court & Statutory Precedents"}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="hidden sm:inline-flex text-xs h-8 border-slate-200 text-[#0d2b43]"
+            >
+              <Link href="/citizen/files">
+                <FileText className="size-3.5 mr-1 text-[#0fa176]" />
+                My Files ({citizenFiles.length})
+              </Link>
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -450,6 +538,26 @@ export function ChatInterface() {
           </div>
         )}
 
+        {/* Active File Banner */}
+        {activePrivateFile && (
+          <div className="border-b border-emerald-200 bg-emerald-50/80 px-4 py-2 sm:px-8 flex items-center justify-between text-xs text-emerald-950">
+            <div className="flex items-center gap-2 min-w-0">
+              <Lock className="size-3.5 text-emerald-600 shrink-0" />
+              <span className="truncate">
+                <strong>File-Based RAG Mode:</strong> Grounding answers on your private document{" "}
+                <span className="underline font-semibold">{activePrivateFile.file_name}</span> and verified Pakistani statutes.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedFileId(null)}
+              className="text-[11px] font-semibold text-emerald-800 hover:text-rose-700 shrink-0 ml-3"
+            >
+              Clear File
+            </button>
+          </div>
+        )}
+
         {/* Message Stream */}
         <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-4 py-6 sm:px-8 bg-[#F8FAFC]">
           {messages.length === 0 && !loadingConversation ? (
@@ -462,7 +570,7 @@ export function ChatInterface() {
                   Understand the Law. Act with Confidence.
                 </h2>
                 <p className="mt-2 text-xs sm:text-sm leading-relaxed text-slate-600 max-w-lg mx-auto">
-                  Ask any legal question in plain English or Urdu. Every response is synthesized exclusively from verified statutory texts under the Pakistan Penal Code, Code of Civil Procedure, Sindh Rented Premises Ordinance, and verified court precedents.
+                  Ask any legal question in plain English or Urdu. Every response is synthesized exclusively from verified statutory texts under the Pakistan Penal Code, Code of Civil Procedure, Sindh Rented Premises Ordinance, and your private uploaded files.
                 </p>
               </div>
 
@@ -535,7 +643,11 @@ export function ChatInterface() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Describe your legal issue or ask a statute question... (Enter to send, Shift+Enter for newline)"
+                placeholder={
+                  activePrivateFile
+                    ? `Ask a legal question about ${activePrivateFile.file_name}...`
+                    : "Describe your legal issue or ask a statute question... (Enter to send, Shift+Enter for newline)"
+                }
                 rows={1}
                 className="max-h-36 min-h-[44px] resize-none border-0 shadow-none focus-visible:ring-0 text-xs sm:text-sm text-[#0d2b43]"
                 aria-label="Your legal question"

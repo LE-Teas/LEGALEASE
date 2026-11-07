@@ -1,5 +1,5 @@
 import { ShieldCheck, Lock, EyeOff, Server, FileText } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 export const metadata = {
@@ -43,7 +43,7 @@ export default function PrivacyPage() {
             </p>
             <ul className="list-disc pl-5 space-y-1.5">
               <li>
-                <strong>Never Transmitted to AI:</strong> Your raw Computerized National Identity Card (CNIC) number is NEVER sent to OpenRouter, NVIDIA, OpenAI, or any LLM inference endpoint.
+                <strong>Never Transmitted to AI:</strong> Your raw Computerized National Identity Card (CNIC) number is NEVER sent to any external LLM inference endpoint or third-party AI provider.
               </li>
               <li>
                 <strong>HMAC-SHA256 Keyed Matching:</strong> CNIC lookups against official Active Taxpayer List (ATL) snapshots are evaluated exclusively server-side using secure keyed matching.
@@ -56,10 +56,10 @@ export default function PrivacyPage() {
 
           <section className="space-y-3">
             <h2 className="font-heading text-lg font-bold text-navy flex items-center gap-2">
-              <Server className="size-4 text-teal" /> 3. Merchant of Record (Lemon Squeezy) Payments
+              <Server className="size-4 text-teal" /> 3. Stripe Sandbox Escrow Payments
             </h2>
             <p>
-              All subscription payments (Advocate Pro, Citizen Premium, Enterprise Chambers) are processed through <strong>Lemon Squeezy</strong> acting as Merchant of Record (MoR). Lemon Squeezy handles payment authorization, global sales tax/VAT collection, and fraud prevention. LegalEase servers never store or process raw debit/credit card numbers or CVV codes.
+              All video consultation escrow payments are processed through <strong>Stripe</strong> (operating in Stripe Sandbox / Test Mode for development and testing). Stripe handles payment authorization, cryptographic webhook signing (<code className="font-mono text-xs">Stripe-Signature</code>), and PCI-DSS card tokenization. LegalEase servers never store or process raw debit/credit card numbers or CVV codes.
             </p>
           </section>
 

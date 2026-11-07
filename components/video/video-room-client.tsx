@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { getErrorMessage } from "@/lib/errors";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -37,7 +36,6 @@ export function VideoRoomClient({
   endTime,
   otherPartyName,
 }: VideoRoomClientProps) {
-  const router = useRouter();
   const [phase, setPhase] = useState<Phase>("pre-call");
   const [roomName, setRoomName] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>("Participant");
@@ -72,7 +70,12 @@ export function VideoRoomClient({
   const handleLeave = useCallback(() => {
     setPhase("ended");
     setRoomName(null);
-  }, []);
+    fetch("/api/video/leave", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ appointmentId }),
+    }).catch(() => {});
+  }, [appointmentId]);
 
   if (phase === "in-call" && roomName) {
     return (
@@ -87,7 +90,9 @@ export function VideoRoomClient({
           </Link>
           <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1.5">
             <ShieldCheck className="size-3.5" />
-            <span className="font-semibold">Encrypted Session Active ({durationMinutes}m)</span>
+            <span className="font-semibold">
+              Encrypted Session Active ({durationMinutes}m)
+            </span>
           </div>
         </div>
         <JitsiRoom
@@ -98,8 +103,8 @@ export function VideoRoomClient({
           onLeave={handleLeave}
         />
         <p className="text-center text-xs text-muted-foreground">
-          Leaving the video room does <strong>not</strong> automatically complete your appointment.
-          The lawyer must mark the appointment as completed separately.
+          Leaving the video room does <strong>not</strong> automatically complete your
+          appointment. The lawyer must mark the appointment as completed separately.
         </p>
       </div>
     );
@@ -116,7 +121,8 @@ export function VideoRoomClient({
         <div>
           <h2 className="font-heading text-2xl font-bold text-navy">Session Ended</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            You have left the video consultation. Your appointment record has not been changed.
+            You have left the video consultation. Your leave event and duration have been
+            recorded.
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -139,7 +145,12 @@ export function VideoRoomClient({
   return (
     <div className="max-w-lg mx-auto space-y-6">
       <div>
-        <Button asChild variant="ghost" size="sm" className="text-slate-600 hover:text-navy -ml-2">
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className="text-slate-600 hover:text-navy -ml-2"
+        >
           <Link href={backHref}>
             <ArrowLeft className="mr-1.5 size-4" />
             Back to Appointment
@@ -178,7 +189,9 @@ export function VideoRoomClient({
               {startTime && endTime && (
                 <div className="flex items-center gap-2 text-sm text-slate-700">
                   <Clock className="size-4 text-teal" />
-                  <span>{startTime?.slice(0, 5)} – {endTime?.slice(0, 5)}</span>
+                  <span>
+                    {startTime?.slice(0, 5)} – {endTime?.slice(0, 5)}
+                  </span>
                 </div>
               )}
             </div>

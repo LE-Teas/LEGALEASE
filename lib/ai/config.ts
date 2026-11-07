@@ -1,35 +1,33 @@
 /**
  * Server-only AI configuration, read from environment variables at runtime.
+ * Configured exclusively for Google Gemini Free Tier API.
  *
- * Never import this module (or any of its dependencies) from a Client
- * Component — it reads secrets from `process.env`.
+ * Never import this module (or any of its dependencies) from a Client Component.
  */
 
-export type EmbeddingProvider = "openai" | "openrouter";
-
 export interface AiConfig {
-  /** OpenRouter chat completions */
-  openRouterApiKey: string | null;
-  openRouterModel: string;
-  /** Embeddings */
-  embeddingProvider: EmbeddingProvider;
+  /** Google Gemini API Key */
+  geminiApiKey: string | null;
+  geminiModel: string;
+
+  /** Model accessors */
+  embeddingProvider: string;
   embeddingApiKey: string | null;
   embeddingModel: string;
+
+  /** Embeddings */
   embeddingDimensions: number;
-  /** Optional override for the embeddings HTTP base URL (OpenAI-compatible). */
-  embeddingBaseUrl: string | null;
+
   /** RAG retrieval knobs */
   maxRetrievedChunks: number;
   similarityThreshold: number;
   maxContextChunks: number;
-  /** Max ~recent-message window sent to the LLM for follow-up context. */
   maxHistoryMessages: number;
 }
 
-const DEFAULT_OPENROUTER_MODEL = "openai/gpt-4o-mini";
-const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
-const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
-const DEFAULT_THRESHOLD = 0.35;
+const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
+const DEFAULT_EMBEDDING_DIMENSIONS = 1536; // matches pgvector definition in schema
+const DEFAULT_THRESHOLD = 0.20;
 
 function env(name: string): string | null {
   const value = process.env[name];
@@ -43,24 +41,17 @@ function numberEnv(name: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-const provider = (env("EMBEDDING_PROVIDER") ?? "openrouter").toLowerCase();
-
 export function getAiConfig(): AiConfig {
-  const embeddingProvider: EmbeddingProvider =
-    provider === "openai" ? "openai" : "openrouter";
-
-  const openRouterApiKey = env("OPENROUTER_API_KEY");
-  const embeddingApiKey =
-    env("EMBEDDING_API_KEY") ?? (embeddingProvider === "openrouter" ? openRouterApiKey : null);
+  const geminiApiKey = env("GEMINI_API_KEY") ?? env("GOOGLE_API_KEY") ?? env("GOOGLE_GENERATIVE_AI_API_KEY");
+  const geminiModel = env("GEMINI_MODEL") ?? DEFAULT_GEMINI_MODEL;
 
   return {
-    openRouterApiKey,
-    openRouterModel: env("OPENROUTER_MODEL") ?? DEFAULT_OPENROUTER_MODEL,
-    embeddingProvider,
-    embeddingApiKey,
-    embeddingModel: env("EMBEDDING_MODEL") ?? DEFAULT_EMBEDDING_MODEL,
+    geminiApiKey,
+    geminiModel,
+    embeddingProvider: "gemini",
+    embeddingApiKey: geminiApiKey,
+    embeddingModel: "text-embedding-004",
     embeddingDimensions: numberEnv("EMBEDDING_DIMENSIONS", DEFAULT_EMBEDDING_DIMENSIONS),
-    embeddingBaseUrl: env("EMBEDDING_BASE_URL"),
     maxRetrievedChunks: numberEnv("LEGALEASE_MAX_RETRIEVED_CHUNKS", 8),
     similarityThreshold: numberEnv("LEGALEASE_SIMILARITY_THRESHOLD", DEFAULT_THRESHOLD),
     maxContextChunks: numberEnv("LEGALEASE_MAX_CONTEXT_CHUNKS", 6),
@@ -70,20 +61,16 @@ export function getAiConfig(): AiConfig {
 
 export function embeddingsConfigError(): string | null {
   const cfg = getAiConfig();
-  if (!cfg.embeddingApiKey) {
-    return `No API key configured for the "${cfg.embeddingProvider}" embedding provider. Set ${
-      cfg.embeddingProvider === "openrouter"
-        ? "EMBEDDING_API_KEY (or reuse OPENROUTER_API_KEY)"
-        : "EMBEDDING_API_KEY"
-    } in your environment.`;
+  if (!cfg.geminiApiKey) {
+    return "GEMINI_API_KEY is not configured in .env.";
   }
   return null;
 }
 
 export function chatConfigError(): string | null {
   const cfg = getAiConfig();
-  if (!cfg.openRouterApiKey) {
-    return "OPENROUTER_API_KEY is not configured.";
+  if (!cfg.geminiApiKey) {
+    return "GEMINI_API_KEY is not configured in .env. Please set GEMINI_API_KEY.";
   }
   return null;
 }

@@ -16,7 +16,7 @@ import type { PlatformAiSetting } from "@/lib/types/legal";
 
 export const metadata: Metadata = {
   title: "AI Model & RAG Settings | Admin Portal",
-  description: "Configure OpenRouter gateway, LLM models, vector retrieval thresholds, and safety policies.",
+  description: "Configure LegalEase AI gateway, LLM models, vector retrieval thresholds, and safety policies.",
   robots: { index: false },
 };
 
@@ -32,9 +32,9 @@ export default async function AdminAiSettingsPage() {
   let aiSettings: PlatformAiSetting | null = null;
   let routingConfig = {
     routing_mode: "auto_free" as const,
-    primary_model: "meta-llama/llama-3.3-70b-instruct:free",
-    fallback_model_1: "google/gemini-2.0-flash-exp:free",
-    fallback_model_2: "mistralai/mistral-small-24b-instruct-2501:free",
+    primary_model: "gemini-3.5-flash",
+    fallback_model_1: "gemini-3.5-flash-lite",
+    fallback_model_2: "gemini-3.8-flash",
     streaming_enabled: true,
     model_cache_ttl_hours: 4,
     last_refreshed_at: null as string | null,
@@ -93,9 +93,11 @@ export default async function AdminAiSettingsPage() {
     }
   }
 
-  const openRouterKeyConfigured = Boolean(process.env.OPENROUTER_API_KEY);
+  const geminiKeyConfigured = Boolean(
+    process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GEMINI_API_KEY
+  );
   const embeddingKeyConfigured = Boolean(
-    process.env.EMBEDDING_API_KEY || process.env.OPENROUTER_API_KEY
+    process.env.EMBEDDING_API_KEY || process.env.GEMINI_API_KEY
   );
 
   return (
@@ -115,7 +117,7 @@ export default async function AdminAiSettingsPage() {
             </h1>
           </div>
           <p className="text-xs text-muted-foreground mt-1 ml-10">
-            Control the OpenRouter gateway, LLM parameters, pgvector cosine similarity cutoff, and prompt configurations.
+            Control the LegalEase AI gateway, LLM parameters, pgvector cosine similarity cutoff, and prompt configurations.
           </p>
         </div>
 
@@ -139,19 +141,19 @@ export default async function AdminAiSettingsPage() {
             </Badge>
           </div>
           <CardDescription className="text-xs">
-            OpenRouter and embedding credentials are kept strictly in server-side environment secrets and are never sent to the browser or stored in public database tables.
+            Google Gemini API and embedding credentials are kept strictly in server-side environment secrets and are never sent to the browser or stored in public database tables.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs pt-1">
           <div className="p-3 bg-white rounded border border-slate-200 flex items-center justify-between">
             <div>
-              <p className="font-semibold text-slate-800">OPENROUTER_API_KEY</p>
+              <p className="font-semibold text-slate-800">GEMINI_API_KEY</p>
               <p className="text-[11px] text-muted-foreground">Gateway for all LLM chat completions</p>
             </div>
             <div className="text-right">
-              {openRouterKeyConfigured ? (
+              {geminiKeyConfigured ? (
                 <span className="font-mono text-xs text-emerald-600 font-semibold flex items-center gap-1">
-                  <ShieldCheck className="size-3.5" /> sk-or-••••••••
+                  <ShieldCheck className="size-3.5" /> AI••••••••
                 </span>
               ) : (
                 <span className="font-mono text-xs text-rose-600 font-semibold">
@@ -181,7 +183,7 @@ export default async function AdminAiSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* OpenRouter Free Model Router & Lawyer Recommendation Policies */}
+      {/* AI Model Router & Lawyer Recommendation Policies */}
       <ModelRouterSettingsClient
         initialRoutingConfig={routingConfig}
         initialModels={registryModels}

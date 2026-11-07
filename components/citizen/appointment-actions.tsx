@@ -29,6 +29,7 @@ export function AppointmentActions({ appointment, hasReview = false }: Appointme
 
   // Cancel State
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
 
@@ -49,6 +50,7 @@ export function AppointmentActions({ appointment, hasReview = false }: Appointme
         body: JSON.stringify({
           appointmentId: appointment.id,
           status: "cancelled",
+          notes: cancelReason.trim() || "Cancelled by citizen.",
         }),
       });
       const data = await res.json();
@@ -93,7 +95,7 @@ export function AppointmentActions({ appointment, hasReview = false }: Appointme
   };
 
   const canCancel = appointment.status === "pending" || appointment.status === "confirmed";
-  const canReview = appointment.status === "completed" && !hasReview;
+  const canReview = appointment.status === "completed" && !hasReview && !appointment.rating_submitted;
 
   return (
     <div className="flex items-center gap-2">
@@ -120,7 +122,21 @@ export function AppointmentActions({ appointment, hasReview = false }: Appointme
               </Alert>
             )}
 
-            <DialogFooter className="mt-4">
+            <div className="space-y-2 py-2">
+              <Label htmlFor="cancel-reason" className="text-xs font-semibold text-slate-700">
+                Reason for Cancellation (Shared with Advocate)
+              </Label>
+              <Textarea
+                id="cancel-reason"
+                rows={3}
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="e.g., Schedule conflict, matter resolved, or need to reschedule..."
+                className="text-xs"
+              />
+            </div>
+
+            <DialogFooter className="mt-2">
               <Button variant="outline" onClick={() => setCancelOpen(false)} disabled={cancelling}>
                 Keep Appointment
               </Button>

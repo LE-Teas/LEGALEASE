@@ -1,17 +1,11 @@
 import Link from "next/link";
 import {
   FileText,
-  FilePlus2,
-  Printer,
-  Download,
   AlertTriangle,
   FolderOpen,
   Eye,
-  ShieldCheck,
   Clock,
   Sparkles,
-  FileCheck,
-  Search,
 } from "lucide-react";
 import { getAuthState } from "@/lib/auth/profile";
 import { getCitizenDocuments } from "@/lib/services/documents";
@@ -20,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { LawyerDocumentGenerator } from "@/components/lawyer/lawyer-document-generator";
 
 export const metadata = {
   title: "Documents & Work Product | Lawyer Portal",
@@ -27,7 +22,7 @@ export const metadata = {
 };
 
 export default async function LawyerDocumentsPage() {
-  const { user } = await getAuthState();
+  const { user, profile } = await getAuthState();
   if (!user) return null;
 
   const [appointments, citizenDocs] = await Promise.all([
@@ -48,17 +43,12 @@ export default async function LawyerDocumentsPage() {
             Documents & Chamber Work Product
           </h2>
           <p className="text-sm text-muted-foreground">
-            Manage legal drafts, consultation case materials, affidavits, and formal legal notices.
+            Manage legal drafts, consultation case materials, affidavits, Wakalatnamas, and formal legal notices.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button asChild className="bg-navy text-white hover:bg-navy/90 text-xs">
-            <Link href="/citizen/documents/generate">
-              <FilePlus2 className="mr-1.5 size-4" />
-              Draft Legal Notice / Affidavit
-            </Link>
-          </Button>
+          <LawyerDocumentGenerator advocateName={profile?.full_name || "Advocate High Court"} />
         </div>
       </div>
 
@@ -94,7 +84,7 @@ export default async function LawyerDocumentsPage() {
         <Card className="border-border">
           <CardContent className="p-5 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground">Generated Drafts</p>
+              <p className="text-xs font-medium text-muted-foreground">Generated Chamber Drafts</p>
               <p className="font-heading text-2xl font-bold text-teal mt-1">
                 {citizenDocs.length}
               </p>
@@ -209,14 +199,12 @@ export default async function LawyerDocumentsPage() {
                 </div>
                 <h3 className="font-heading text-lg font-bold text-navy">No Legal Drafts Created</h3>
                 <p className="text-xs text-muted-foreground max-w-md mt-1 mb-6">
-                  Generate recovery notices under the Negotiable Instruments Act 1881, sworn affidavits, landlord-tenant undertakings, or general authorizations.
+                  Generate recovery notices under the Negotiable Instruments Act 1881, sworn affidavits, landlord-tenant undertakings, or Wakalatnamas.
                 </p>
-                <Button asChild className="bg-navy text-white hover:bg-navy/90 text-xs">
-                  <Link href="/citizen/documents/generate">
-                    <FilePlus2 className="mr-1.5 size-3.5" />
-                    Create New Draft
-                  </Link>
-                </Button>
+                <LawyerDocumentGenerator
+                  triggerLabel="Create New Chamber Draft"
+                  advocateName={profile?.full_name || "Advocate High Court"}
+                />
               </CardContent>
             </Card>
           ) : (
@@ -251,21 +239,8 @@ export default async function LawyerDocumentsPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-0">
-                    <div className="rounded-lg bg-slate-50 p-2.5 text-[11px] text-slate-600 line-clamp-3 font-mono">
-                      {doc.generated_content.slice(0, 150)}...
-                    </div>
-                    <div className="mt-4 flex items-center justify-between gap-2 pt-3 border-t border-slate-100">
-                      <Button asChild size="sm" variant="outline" className="text-xs h-8">
-                        <Link href={`/citizen/documents/generate?id=${doc.id}`}>
-                          Review & Edit
-                        </Link>
-                      </Button>
-                      <Button asChild size="sm" variant="outline" className="text-xs h-8">
-                        <Link href={`/citizen/documents/generate?id=${doc.id}`}>
-                          <Printer className="mr-1 size-3.5" />
-                          View & Print
-                        </Link>
-                      </Button>
+                    <div className="rounded-lg bg-slate-50 p-2.5 text-[11px] text-slate-600 line-clamp-4 font-mono whitespace-pre-wrap">
+                      {doc.generated_content.slice(0, 220)}...
                     </div>
                   </CardContent>
                 </Card>
@@ -302,18 +277,6 @@ export default async function LawyerDocumentsPage() {
                 desc: "Authorization appointing an Advocate to represent, plead, and act before courts, tribunals, and authorities.",
                 type: "power_of_attorney",
               },
-              {
-                title: "Consumer Court Dispute Notice",
-                law: "Sindh Consumer Protection Act 2014",
-                desc: "Mandatory statutory 15-day pre-litigation legal notice served upon manufacturer/vendor before filing complaint.",
-                type: "consumer_notice",
-              },
-              {
-                title: "Employee Termination / Grievance Notice",
-                law: "Industrial & Commercial Employment (Standing Orders) Ordinance 1968",
-                desc: "Formal reply to show-cause notice or statutory grievance petition before the Labour Court.",
-                type: "labour_notice",
-              },
             ].map((tmpl) => (
               <Card key={tmpl.title} className="border-border flex flex-col justify-between">
                 <CardHeader className="pb-3">
@@ -331,12 +294,11 @@ export default async function LawyerDocumentsPage() {
                   </p>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <Button asChild size="sm" className="w-full bg-navy text-white hover:bg-navy/90 text-xs">
-                    <Link href={`/citizen/documents/generate?template=${tmpl.type}`}>
-                      <FilePlus2 className="mr-1.5 size-3.5" />
-                      Create Working Draft
-                    </Link>
-                  </Button>
+                  <LawyerDocumentGenerator
+                    defaultTemplate={tmpl.type}
+                    triggerLabel="Create Working Draft"
+                    advocateName={profile?.full_name || "Advocate High Court"}
+                  />
                 </CardContent>
               </Card>
             ))}

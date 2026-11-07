@@ -382,7 +382,7 @@ export function FilerStatusClient() {
         <Shield className="size-4 shrink-0 mt-0.5 text-blue-600" />
         <span>
           <strong>Privacy:</strong> Your CNIC is only used for a direct database lookup on our secure servers.
-          It is never logged, shared with third parties, or sent to any AI service (including OpenRouter).
+          It is never logged, shared with third parties, or sent to any external AI service.
         </span>
       </div>
 

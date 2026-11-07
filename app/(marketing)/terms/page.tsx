@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 export const metadata = {
   title: "Terms of Service | LegalEase Pakistan",
   description:
-    "Terms governing the use of LegalEase AI assistance, lawyer discovery, and Lemon Squeezy SaaS subscriptions.",
+    "Terms governing the use of LegalEase AI assistance, lawyer discovery, and Stripe Sandbox escrow consultations.",
 };
 
 export default function TermsPage() {
@@ -39,10 +39,10 @@ export default function TermsPage() {
 
           <section className="space-y-3">
             <h2 className="font-heading text-lg font-bold text-navy flex items-center gap-2">
-              <CreditCard className="size-4 text-teal" /> 2. SaaS Subscriptions & Merchant of Record
+              <CreditCard className="size-4 text-teal" /> 2. Consultation Escrow & Payment Processing
             </h2>
             <p>
-              Digital subscription billing on LegalEase is handled by <strong>Lemon Squeezy</strong>, which serves as Merchant of Record for all transactions. As MoR, Lemon Squeezy is the authorized reseller and legal merchant, handling invoicing, applicable sales taxes, and payment settlements. Subscriptions renew automatically each month unless cancelled prior to the renewal date via the Customer Billing Portal.
+              Digital consultation billing and escrow payments on LegalEase are processed via <strong>Stripe Sandbox Mode</strong> (Stripe Checkout). Payment settlements, 10% platform commissions, and automated cancellation refunds are verified using <code>Stripe-Signature</code> HMAC-SHA256 webhooks before releasing advocate payouts.
             </p>
           </section>
 

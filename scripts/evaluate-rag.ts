@@ -26,8 +26,35 @@ loadEnv();
 const RAW = process.argv.slice(2);
 const K = Number(RAW.find((a) => a.startsWith("--k="))?.slice(4) ?? 5);
 const questionsPath =
-  RAW.find((a) => a.startsWith("--questions="))?.slice(12) ??
-  path.join(process.cwd(), "tests", "rag", "legal-questions.json");
+  RAW.find((a) => a.startsWith("--questions="))?.slice(12) ?? null;
+
+const DEFAULT_EVAL_QUESTIONS: EvalQuestion[] = [
+  {
+    category: "constitutional_law",
+    question: "What are the fundamental rights guaranteed under the Constitution of Pakistan?",
+    expected_documents: ["the_constitution_of_the_islamic_republic_of_pakistan"],
+  },
+  {
+    category: "property_law",
+    question: "What is the procedure for enforcement of women property rights in Pakistan?",
+    expected_documents: ["enforcement_of_womens_property_rights_act_2020"],
+  },
+  {
+    category: "criminal_law",
+    question: "What measures are enacted for investigation and special trial of anti-rape cases?",
+    expected_documents: ["anti_rape_investigation_and_trial_act_2021"],
+  },
+  {
+    category: "family_law",
+    question: "How are letters of administration and succession certificates obtained?",
+    expected_documents: ["letters_of_administration_and_succession_certificates_act_2020"],
+  },
+  {
+    category: "corporate_law",
+    question: "What legal provisions govern the China Pakistan Economic Corridor Authority?",
+    expected_documents: ["china_pakistan_economic_corridor_authority_act_2021"],
+  },
+];
 const reportFile = RAW.find((a) => a.startsWith("--report="))?.slice(9) ?? null;
 
 interface EvalQuestion {
@@ -62,7 +89,9 @@ async function main(): Promise<void> {
   }
 
   const admin = createAdminClient()!;
-  const questions = JSON.parse(fs.readFileSync(questionsPath, "utf8")) as EvalQuestion[];
+  const questions: EvalQuestion[] = questionsPath
+    ? (JSON.parse(fs.readFileSync(questionsPath, "utf8")) as EvalQuestion[])
+    : DEFAULT_EVAL_QUESTIONS;
   console.log(`Questions : ${questions.length}`);
   console.log(`Embedding : ${cfg.embeddingModel} (${cfg.embeddingDimensions}d, ${cfg.embeddingProvider})`);
   console.log(`Hit@K     : ${K} · threshold ${cfg.similarityThreshold}\n`);

@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { classifyQuery } from "@/lib/rag/classifier";
 import { generateEmbedding } from "@/lib/ai/embeddings";
 import { retrieveLegalChunks } from "@/lib/rag/retrieval";
-import { chatCompletion } from "@/lib/ai/openrouter";
+import { chatCompletion } from "@/lib/ai/gemini";
 import { getAiConfig } from "@/lib/ai/config";
 import { buildGenerationUserPrompt } from "@/lib/rag/prompts";
 import { buildCitationLookup, buildSources, validateCitations } from "@/lib/rag/citations";
@@ -98,7 +98,7 @@ export async function testLegalRagQueryAction(
       history: [],
     });
 
-    // 4. OpenRouter Generation
+    // 4. Grounded AI Generation
     const generationStart = Date.now();
     const completion = await chatCompletion(messages, {
       jsonObject: true,
@@ -165,7 +165,7 @@ export async function testLegalRagQueryAction(
           })),
         },
         generation: {
-          model: cfg.openRouterModel,
+          model: cfg.geminiModel || "gemini-3.5-flash",
           generationLatencyMs,
           rawAnswer: answerData.answer,
           structuredAnswer: answerData,

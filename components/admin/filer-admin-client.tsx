@@ -17,8 +17,6 @@ import {
 } from "lucide-react";
 
 import {
-  parseFilerFileAction,
-  commitFilerDatasetAction,
   activateFilerDatasetAction,
   deactivateFilerDatasetAction,
   deleteFilerDatasetAction,
@@ -194,11 +192,19 @@ export function FilerAdminClient({
     formData.append("file", selectedFile);
 
     startParsing(async () => {
-      const result = await parseFilerFileAction(formData);
-      if (result.ok && result.data) {
-        setPreview(result.data);
-      } else {
-        setParseError(result.error ?? "Failed to parse file.");
+      try {
+        const res = await fetch("/api/admin/filer/parse", {
+          method: "POST",
+          body: formData,
+        });
+        const result = await res.json();
+        if (result.ok && result.data) {
+          setPreview(result.data);
+        } else {
+          setParseError(result.error ?? "Failed to parse file.");
+        }
+      } catch (err: unknown) {
+        setParseError(err instanceof Error ? err.message : "Failed to parse file.");
       }
     });
   }, [selectedFile]);
@@ -218,18 +224,26 @@ export function FilerAdminClient({
     formData.append("activateImmediately", String(activateImmediately));
 
     startCommit(async () => {
-      const result = await commitFilerDatasetAction(formData);
-      if (result.ok && result.data) {
-        setSuccessMsg(
-          `Dataset imported successfully! ${result.data.importedCount.toLocaleString()} records added.`
-        );
-        setSelectedFile(null);
-        setPreview(null);
-        if (fileInputRef.current) fileInputRef.current.value = "";
-        // Refresh page data
-        window.location.reload();
-      } else {
-        setCommitError(result.error ?? "Import failed.");
+      try {
+        const res = await fetch("/api/admin/filer/commit", {
+          method: "POST",
+          body: formData,
+        });
+        const result = await res.json();
+        if (result.ok && result.data) {
+          setSuccessMsg(
+            `Dataset imported successfully! ${result.data.importedCount.toLocaleString()} records added.`
+          );
+          setSelectedFile(null);
+          setPreview(null);
+          if (fileInputRef.current) fileInputRef.current.value = "";
+          // Refresh page data
+          window.location.reload();
+        } else {
+          setCommitError(result.error ?? "Import failed.");
+        }
+      } catch (err: unknown) {
+        setCommitError(err instanceof Error ? err.message : "Import failed.");
       }
     });
   }, [selectedFile, preview, source, taxYear, effectiveDate, activateImmediately]);
@@ -354,7 +368,7 @@ export function FilerAdminClient({
       <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
         <Info className="size-4 shrink-0 mt-0.5 text-blue-600" />
         <span>
-          <strong>Security:</strong> CNIC data is stored server-side and never sent to OpenRouter or exposed to citizens in bulk.
+          <strong>Security:</strong> CNIC data is stored server-side and never sent to external AI or exposed to citizens in bulk.
           Citizens may query one CNIC at a time through a server-enforced lookup only.
           Dataset records are never downloadable from the browser.
         </span>

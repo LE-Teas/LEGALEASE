@@ -4,24 +4,26 @@ import { createClient } from "@/lib/supabase/server";
 import {
   BarChart3,
   Download,
-  Calendar,
   Users,
   ShieldCheck,
   CalendarClock,
-  Wallet,
   Sparkles,
-  BookOpen,
   FileText,
-  TrendingUp,
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatRate } from "@/lib/data/lawyers";
 
 export const metadata: Metadata = {
   title: "Reports & Platform Analytics | LegalEase Admin",
-  description: "Aggregated performance metrics, financial reporting, and authenticated CSV data exports.",
+  description:
+    "Aggregated performance metrics, financial reporting, and authenticated CSV data exports.",
   robots: { index: false },
 };
 
@@ -31,11 +33,20 @@ interface PageProps {
   searchParams: Promise<{ range?: string }>;
 }
 
+function computeCutoffIso(range?: string): string | null {
+  if (range !== "7d" && range !== "30d") return null;
+  const days = range === "7d" ? 7 : 30;
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - days);
+  return d.toISOString();
+}
+
 export default async function AdminReportsPage({ searchParams }: PageProps) {
   const { range } = await searchParams;
   const supabase = await createClient();
 
-  // Metrics
+  const cutoffDateIso = computeCutoffIso(range);
+
   let citizensCount = 0;
   let lawyersCount = 0;
   let verifiedLawyersCount = 0;
@@ -49,13 +60,29 @@ export default async function AdminReportsPage({ searchParams }: PageProps) {
   let totalAiQueries = 0;
 
   if (supabase) {
-    const [profilesRes, lawyerProfilesRes, apptsRes, docsRes, aiRes] = await Promise.all([
-      supabase.from("profiles").select("role, created_at"),
-      supabase.from("lawyer_profiles").select("verification_status"),
-      supabase.from("appointments").select("status, total_amount, platform_fee, consultation_fee, created_at"),
-      supabase.from("legal_documents").select("verification_status"),
-      supabase.from("messages").select("id", { count: "exact", head: true }).eq("role", "assistant"),
-    ]);
+    let profilesQuery = supabase.from("profiles").select("role, created_at");
+    let apptsQuery = supabase
+      .from("appointments")
+      .select("status, total_amount, platform_fee, consultation_fee, created_at");
+    let aiQuery = supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("role", "assistant");
+
+    if (cutoffDateIso) {
+      profilesQuery = profilesQuery.gte("created_at", cutoffDateIso);
+      apptsQuery = apptsQuery.gte("created_at", cutoffDateIso);
+      aiQuery = aiQuery.gte("created_at", cutoffDateIso);
+    }
+
+    const [profilesRes, lawyerProfilesRes, apptsRes, docsRes, aiRes] =
+      await Promise.all([
+        profilesQuery,
+        supabase.from("lawyer_profiles").select("verification_status"),
+        apptsQuery,
+        supabase.from("legal_documents").select("verification_status"),
+        aiQuery,
+      ]);
 
     if (profilesRes.data) {
       profilesRes.data.forEach((p) => {
@@ -76,22 +103,34 @@ export default async function AdminReportsPage({ searchParams }: PageProps) {
         if (a.status === "completed") completedCount++;
         else if (a.status === "cancelled") cancelledCount++;
 
-        totalGrossVolume += Number(a.total_amount) || Number(a.consultation_fee) || 0;
+        totalGrossVolume +=
+          Number(a.total_amount) || Number(a.consultation_fee) || 0;
         totalPlatformRevenue += Number(a.platform_fee) || 0;
       });
     }
 
     if (docsRes.data) {
       totalDocs = docsRes.data.length;
-      verifiedDocs = docsRes.data.filter((d) => d.verification_status === "verified").length;
+      verifiedDocs = docsRes.data.filter(
+        (d) => d.verification_status === "verified"
+      ).length;
     }
 
     totalAiQueries = aiRes.count || 0;
   }
 
-  const completionRate = appointmentsCount > 0 ? Math.round((completedCount / appointmentsCount) * 100) : 0;
-  const cancellationRate = appointmentsCount > 0 ? Math.round((cancelledCount / appointmentsCount) * 100) : 0;
-  const lawyerVerificationRate = lawyersCount > 0 ? Math.round((verifiedLawyersCount / lawyersCount) * 100) : 0;
+  const completionRate =
+    appointmentsCount > 0
+      ? Math.round((completedCount / appointmentsCount) * 100)
+      : 0;
+  const cancellationRate =
+    appointmentsCount > 0
+      ? Math.round((cancelledCount / appointmentsCount) * 100)
+      : 0;
+  const lawyerVerificationRate =
+    lawyersCount > 0
+      ? Math.round((verifiedLawyersCount / lawyersCount) * 100)
+      : 0;
 
   return (
     <div className="space-y-6">
@@ -103,7 +142,8 @@ export default async function AdminReportsPage({ searchParams }: PageProps) {
             Reports & Platform Analytics
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Aggregated operational data, consultation trends, revenue reconciliation, and authorized CSV downloads.
+            Aggregated operational data, consultation trends, revenue reconciliation, and
+            authorized CSV downloads.
           </p>
         </div>
 
@@ -112,7 +152,9 @@ export default async function AdminReportsPage({ searchParams }: PageProps) {
           <Link
             href="/admin/reports?range=7d"
             className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-              range === "7d" ? "bg-[#0A2843] text-white" : "text-slate-600 hover:text-slate-900"
+              range === "7d"
+                ? "bg-[#0A2843] text-white"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             Last 7 Days
@@ -120,7 +162,9 @@ export default async function AdminReportsPage({ searchParams }: PageProps) {
           <Link
             href="/admin/reports?range=30d"
             className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-              range === "30d" ? "bg-[#0A2843] text-white" : "text-slate-600 hover:text-slate-900"
+              range === "30d"
+                ? "bg-[#0A2843] text-white"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             Last 30 Days
@@ -153,7 +197,12 @@ export default async function AdminReportsPage({ searchParams }: PageProps) {
                   Full booking history, fees, consultation modes, and payment statuses.
                 </p>
               </div>
-              <Button asChild size="sm" variant="outline" className="w-full text-xs gap-1.5 border-slate-200">
+              <Button
+                asChild
+                size="sm"
+                variant="outline"
+                className="w-full text-xs gap-1.5 border-slate-200"
+              >
                 <a href="/api/admin/reports/export?type=appointments" download>
                   <Download className="size-3.5 text-[#0CA275]" />
                   Download CSV ({appointmentsCount})
@@ -170,10 +219,16 @@ export default async function AdminReportsPage({ searchParams }: PageProps) {
                   Advocates Directory
                 </p>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Bar Council enrollments, license numbers, rates, and verification statuses.
+                  Bar Council enrollments, license numbers, rates, and verification
+                  statuses.
                 </p>
               </div>
-              <Button asChild size="sm" variant="outline" className="w-full text-xs gap-1.5 border-slate-200">
+              <Button
+                asChild
+                size="sm"
+                variant="outline"
+                className="w-full text-xs gap-1.5 border-slate-200"
+              >
                 <a href="/api/admin/reports/export?type=lawyers" download>
                   <Download className="size-3.5 text-[#0CA275]" />
                   Download CSV ({lawyersCount})
@@ -193,7 +248,12 @@ export default async function AdminReportsPage({ searchParams }: PageProps) {
                   Registered citizens and administrative staff with registration dates.
                 </p>
               </div>
-              <Button asChild size="sm" variant="outline" className="w-full text-xs gap-1.5 border-slate-200">
+              <Button
+                asChild
+                size="sm"
+                variant="outline"
+                className="w-full text-xs gap-1.5 border-slate-200"
+              >
                 <a href="/api/admin/reports/export?type=users" download>
                   <Download className="size-3.5 text-[#0CA275]" />
                   Download CSV ({citizensCount + lawyersCount})
@@ -213,7 +273,12 @@ export default async function AdminReportsPage({ searchParams }: PageProps) {
                   Complete immutable administrative mutations and decision timestamps.
                 </p>
               </div>
-              <Button asChild size="sm" variant="outline" className="w-full text-xs gap-1.5 border-slate-200">
+              <Button
+                asChild
+                size="sm"
+                variant="outline"
+                className="w-full text-xs gap-1.5 border-slate-200"
+              >
                 <a href="/api/admin/reports/export?type=audit_logs" download>
                   <Download className="size-3.5 text-purple-600" />
                   Download Audit Log
@@ -226,7 +291,6 @@ export default async function AdminReportsPage({ searchParams }: PageProps) {
 
       {/* Aggregate Report Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Operations & Consultations Metrics */}
         <Card className="border-slate-200 bg-white">
           <CardHeader className="pb-3">
             <CardTitle className="font-heading text-base text-[#0A2843] flex items-center gap-2">
@@ -244,24 +308,31 @@ export default async function AdminReportsPage({ searchParams }: PageProps) {
             </div>
             <div className="flex justify-between items-center py-2 border-b border-slate-100">
               <span className="text-slate-600">Completed Consultations</span>
-              <span className="font-bold text-[#0CA275]">{completedCount} ({completionRate}%)</span>
+              <span className="font-bold text-[#0CA275]">
+                {completedCount} ({completionRate}%)
+              </span>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-slate-100">
               <span className="text-slate-600">Administrative / User Cancellations</span>
-              <span className="font-bold text-rose-600">{cancelledCount} ({cancellationRate}%)</span>
+              <span className="font-bold text-rose-600">
+                {cancelledCount} ({cancellationRate}%)
+              </span>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-slate-100">
               <span className="text-slate-600">Total Gross Client Spend</span>
-              <span className="font-bold text-[#0A2843]">{formatRate(totalGrossVolume)}</span>
+              <span className="font-bold text-[#0A2843]">
+                {formatRate(totalGrossVolume)}
+              </span>
             </div>
             <div className="flex justify-between items-center py-2">
               <span className="text-slate-600">Platform Commission Retained</span>
-              <span className="font-bold text-[#0CA275]">{formatRate(totalPlatformRevenue)}</span>
+              <span className="font-bold text-[#0CA275]">
+                {formatRate(totalPlatformRevenue)}
+              </span>
             </div>
           </CardContent>
         </Card>
 
-        {/* Legal Intelligence & Knowledge Base Health */}
         <Card className="border-slate-200 bg-white">
           <CardHeader className="pb-3">
             <CardTitle className="font-heading text-base text-[#0A2843] flex items-center gap-2">
@@ -282,16 +353,24 @@ export default async function AdminReportsPage({ searchParams }: PageProps) {
               <span className="font-bold text-slate-900">{totalDocs} Documents</span>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-slate-100">
-              <span className="text-slate-600">Verified Authoritative Laws (RAG-Eligible)</span>
+              <span className="text-slate-600">
+                Verified Authoritative Laws (RAG-Eligible)
+              </span>
               <span className="font-bold text-[#0CA275]">{verifiedDocs} Approved</span>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-slate-100">
-              <span className="text-slate-600">Advocate Verification Approval Ratio</span>
-              <span className="font-bold text-[#0A2843]">{lawyerVerificationRate}% of directory</span>
+              <span className="text-slate-600">
+                Advocate Verification Approval Ratio
+              </span>
+              <span className="font-bold text-[#0A2843]">
+                {lawyerVerificationRate}% of directory
+              </span>
             </div>
             <div className="flex justify-between items-center py-2">
               <span className="text-slate-600">Pakistani Statutory Coverage</span>
-              <span className="font-bold text-slate-900">Federal &amp; Sindh Code Active</span>
+              <span className="font-bold text-slate-900">
+                Federal &amp; Provincial Code Active
+              </span>
             </div>
           </CardContent>
         </Card>

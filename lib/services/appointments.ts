@@ -44,7 +44,6 @@ export async function createAppointment(
 
   if (!rpcErr && rpcData && rpcData.appointment_id) {
     const appointmentId = rpcData.appointment_id;
-    // Fetch full appointment object
     const { data: createdAppt } = await supabase
       .from("appointments")
       .select(`
@@ -55,22 +54,45 @@ export async function createAppointment(
         lawyer:profiles!appointments_lawyer_id_fkey(
           id, full_name, email, phone, avatar_url, city
         ),
-        lawyer_profile:lawyer_profiles!appointments_lawyer_id_fkey(
+        lawyer_profile:lawyer_profiles!appointments_lawyer_profile_fkey(
           professional_title, primary_specialization, office_address, consultation_fee
         )
       `)
       .eq("id", appointmentId)
       .single();
 
+    // Also dispatch SMTP email notifications to citizen and lawyer
+    await sendNotification(
+      input.citizenId,
+      "appointment_booked",
+      "Consultation Booking Submitted",
+      `Your ${input.consultationType.replace("_", " ")} consultation request (${durationMinutes} mins) for ${input.appointmentDate} at ${input.startTime} has been submitted and is awaiting advocate confirmation.`,
+      { appointment_id: appointmentId, lawyer_id: input.lawyerId }
+    );
+
+    await sendNotification(
+      input.lawyerId,
+      "appointment_request",
+      "New Consultation Request",
+      `A citizen has requested a ${input.consultationType.replace("_", " ")} consultation (${durationMinutes} mins) on ${input.appointmentDate} at ${input.startTime}.`,
+      { appointment_id: appointmentId, citizen_id: input.citizenId }
+    );
+
     return {
       success: true,
       appointmentId,
-      appointment: (createdAppt as unknown as Appointment) || ({ id: appointmentId } as unknown as Appointment),
+      appointment:
+        (createdAppt as unknown as Appointment) ||
+        ({ id: appointmentId } as unknown as Appointment),
     };
   }
 
   // If RPC returned an error that is a validation message, return it directly
-  if (rpcErr && !rpcErr.message.includes("does not exist") && !rpcErr.message.includes("could not find")) {
+  if (
+    rpcErr &&
+    !rpcErr.message.includes("does not exist") &&
+    !rpcErr.message.includes("could not find")
+  ) {
     return { success: false, error: rpcErr.message };
   }
 
@@ -86,24 +108,39 @@ export async function createAppointment(
   }
 
   if (lawyerProfile.verification_status !== "verified" || !lawyerProfile.is_published) {
-    return { success: false, error: "This lawyer is not currently verified or accepting bookings." };
+    return {
+      success: false,
+      error: "This lawyer is not currently verified or accepting bookings.",
+    };
   }
 
-  // Server-side conflict check to prevent race-condition double bookings
+  // Server-side time-range overlap conflict check:
+  // existing.start_time < input.endTime AND existing.end_time > input.startTime
   const { data: existingBookings } = await supabase
     .from("appointments")
-    .select("id")
+    .select("id, start_time, end_time")
     .eq("lawyer_id", input.lawyerId)
     .eq("appointment_date", input.appointmentDate)
-    .eq("start_time", input.startTime)
     .in("status", ["pending", "confirmed"]);
 
-  if (existingBookings && existingBookings.length > 0) {
-    return { success: false, error: "This time slot is no longer available. Please select another slot." };
+  const hasOverlap = (existingBookings ?? []).some((b) => {
+    const existingStart = String(b.start_time).slice(0, 5);
+    const existingEnd = String(b.end_time).slice(0, 5);
+    const reqStart = input.startTime.slice(0, 5);
+    const reqEnd = input.endTime.slice(0, 5);
+    return existingStart < reqEnd && existingEnd > reqStart;
+  });
+
+  if (hasOverlap) {
+    return {
+      success: false,
+      error: "This time slot overlaps with an existing consultation. Please select another slot.",
+    };
   }
 
   const isPhysical = input.consultationType === "in_person";
-  const fee = isPhysical ? 0 : (lawyerProfile.consultation_fee || 0);
+  const baseHourlyFee = Number(lawyerProfile.consultation_fee) || 3000;
+  const fee = isPhysical ? 0 : Math.round((baseHourlyFee * durationMinutes) / 60);
   const platformFee = isPhysical ? 0 : Math.round(fee * 0.1);
   const taxAmount = 0;
   const totalAmount = fee + platformFee + taxAmount;
@@ -143,45 +180,56 @@ export async function createAppointment(
       lawyer:profiles!appointments_lawyer_id_fkey(
         id, full_name, email, phone, avatar_url, city
       ),
-      lawyer_profile:lawyer_profiles!appointments_lawyer_id_fkey(
+      lawyer_profile:lawyer_profiles!appointments_lawyer_profile_fkey(
         professional_title, primary_specialization, office_address, consultation_fee
       )
     `)
     .single();
 
   if (insertErr || !appointment) {
-    return { success: false, error: insertErr?.message || "Failed to create appointment" };
+    return {
+      success: false,
+      error: insertErr?.message || "Failed to create appointment",
+    };
   }
 
-  // Record agreement acceptance
   try {
     await supabase.from("appointment_agreements").insert({
       appointment_id: appointment.id,
-      citizen_id: input.citizenId,
-      lawyer_id: input.lawyerId,
       consultation_fee: fee,
       platform_fee: platformFee,
+      platform_fee_type: "percentage",
       tax_amount: taxAmount,
       total_amount: totalAmount,
       lawyer_receivable: lawyerReceivable,
-      currency: "PKR",
-      agreement_version: input.agreementVersion || "v1.0",
-      ip_address: input.ipAddress || null,
+      agreement_version: input.agreementVersion || "1.0",
+      citizen_ip_address: input.ipAddress || null,
     });
   } catch {
-    // Non-fatal if table not migrated yet
+    // Non-fatal
   }
 
-  // Send notification to the lawyer
+  await sendNotification(
+    input.citizenId,
+    "appointment_booked",
+    "Consultation Booking Submitted",
+    `Your ${input.consultationType.replace("_", " ")} consultation request (${durationMinutes} mins) for ${input.appointmentDate} at ${input.startTime} has been submitted and is awaiting advocate confirmation.`,
+    { appointment_id: appointment.id }
+  );
+
   await sendNotification(
     input.lawyerId,
     "appointment_request",
     "New Consultation Request",
-    `A citizen has requested a ${input.consultationType.replace("_", " ")} consultation on ${input.appointmentDate} at ${input.startTime}.`,
+    `A citizen has requested a ${input.consultationType.replace("_", " ")} consultation (${durationMinutes} mins) on ${input.appointmentDate} at ${input.startTime}.`,
     { appointment_id: appointment.id }
   );
 
-  return { success: true, appointmentId: appointment.id, appointment: appointment as unknown as Appointment };
+  return {
+    success: true,
+    appointmentId: appointment.id,
+    appointment: appointment as unknown as Appointment,
+  };
 }
 
 export async function getCitizenAppointments(citizenId: string): Promise<Appointment[]> {
@@ -195,7 +243,7 @@ export async function getCitizenAppointments(citizenId: string): Promise<Appoint
       lawyer:profiles!appointments_lawyer_id_fkey(
         id, full_name, email, phone, avatar_url, city
       ),
-      lawyer_profile:lawyer_profiles!appointments_lawyer_id_fkey(
+      lawyer_profile:lawyer_profiles!appointments_lawyer_profile_fkey(
         professional_title, primary_specialization, office_address
       )
     `)
@@ -244,7 +292,7 @@ export async function getAppointmentById(
       lawyer:profiles!appointments_lawyer_id_fkey(
         id, full_name, email, phone, avatar_url, city
       ),
-      lawyer_profile:lawyer_profiles!appointments_lawyer_id_fkey(
+      lawyer_profile:lawyer_profiles!appointments_lawyer_profile_fkey(
         professional_title, primary_specialization, office_address, consultation_fee
       )
     `)
@@ -253,7 +301,6 @@ export async function getAppointmentById(
 
   if (error || !data) return null;
 
-  // Authorization check
   if (data.citizen_id !== userId && data.lawyer_id !== userId) {
     return null;
   }
@@ -271,7 +318,6 @@ export async function updateAppointmentStatus(
   const supabase = await createClient();
   if (!supabase) return { success: false, error: "Database unavailable" };
 
-  // Fetch current appointment
   const { data: appt, error: fetchErr } = await supabase
     .from("appointments")
     .select("*")
@@ -282,7 +328,6 @@ export async function updateAppointmentStatus(
     return { success: false, error: "Appointment not found" };
   }
 
-  // Authorization and State Transition Validation
   if (actorRole === "lawyer" && appt.lawyer_id !== actorId) {
     return { success: false, error: "Unauthorized" };
   }
@@ -290,20 +335,31 @@ export async function updateAppointmentStatus(
     return { success: false, error: "Unauthorized" };
   }
 
-  // Allowed state transitions:
-  // Lawyer can:
-  // - pending -> confirmed
-  // - pending -> rejected
-  // - confirmed -> completed
-  // Citizen can:
-  // - pending -> cancelled
-  // - confirmed -> cancelled
   if (actorRole === "citizen") {
     if (newStatus !== "cancelled") {
       return { success: false, error: "Citizens can only cancel appointments." };
     }
     if (appt.status === "completed" || appt.status === "rejected") {
       return { success: false, error: `Cannot cancel a ${appt.status} appointment.` };
+    }
+
+    // Check cancellation cutoff hours for confirmed appointments
+    if (appt.status === "confirmed") {
+      const { data: cutoffRow } = await supabase
+        .from("platform_settings")
+        .select("value")
+        .eq("key", "cancellation_cutoff_hours")
+        .maybeSingle();
+      const cutoffHours = Number(cutoffRow?.value || 24);
+      const apptTimeMs = new Date(`${appt.appointment_date}T${appt.start_time}`).getTime();
+      const hoursUntilStart = (apptTimeMs - Date.now()) / (1000 * 60 * 60);
+
+      if (hoursUntilStart > 0 && hoursUntilStart < cutoffHours && !notes?.trim()) {
+        return {
+          success: false,
+          error: `Cancellations within ${cutoffHours} hours of a confirmed consultation require a cancellation reason.`,
+        };
+      }
     }
   }
 
@@ -315,12 +371,12 @@ export async function updateAppointmentStatus(
       return { success: false, error: "Invalid status transition for confirmed appointment." };
     }
 
-    // Validation for completion
     if (newStatus === "completed") {
       if (appt.consultation_type === "video" && appt.payment_status !== "paid") {
         return {
           success: false,
-          error: "Video consultation cannot be marked completed until client payment has been confirmed.",
+          error:
+            "Video consultation cannot be marked completed until client payment has been confirmed.",
         };
       }
     }
@@ -339,12 +395,30 @@ export async function updateAppointmentStatus(
     }
   }
 
+  if (newStatus === "cancelled") {
+    updatePayload.cancelled_by = actorRole;
+    updatePayload.cancelled_at = new Date().toISOString();
+    updatePayload.cancellation_reason = notes?.trim() || `Cancelled by ${actorRole}`;
+    if (appt.payment_status === "paid") {
+      updatePayload.payment_status = "refunded";
+      updatePayload.settlement_status = "failed";
+      await supabase
+        .from("payments")
+        .update({ status: "refunded", updated_at: new Date().toISOString() })
+        .eq("appointment_id", appointmentId);
+    }
+  }
+
   if (newStatus === "completed") {
     updatePayload.completed_at = new Date().toISOString();
     updatePayload.completed_by = actorRole;
-    updatePayload.settlement_status = appt.consultation_type === "video" ? "eligible" : "waived";
-    if (notes) {
-      updatePayload.early_completion_reason = notes;
+    updatePayload.settlement_status =
+      appt.consultation_type === "video" || appt.consultation_type === "phone"
+        ? "eligible"
+        : "waived";
+    if (notes?.trim()) {
+      updatePayload.early_completion_reason = notes.trim();
+      updatePayload.completed_early = true;
     }
   }
 
@@ -357,7 +431,6 @@ export async function updateAppointmentStatus(
     return { success: false, error: updateErr.message };
   }
 
-  // If completed, close active consultation session if one exists
   if (newStatus === "completed") {
     try {
       await supabase
@@ -373,21 +446,23 @@ export async function updateAppointmentStatus(
     }
   }
 
-  // Send notification to the other party
   const targetUserId = actorRole === "lawyer" ? appt.citizen_id : appt.lawyer_id;
   const statusTitles: Record<string, string> = {
-    confirmed: appt.consultation_type === "video" 
-      ? "Consultation Accepted — Payment Required" 
-      : "Consultation Request Confirmed",
+    confirmed:
+      appt.consultation_type === "video"
+        ? "Consultation Accepted — Payment Required"
+        : "Consultation Request Confirmed",
     rejected: "Consultation Request Declined",
     cancelled: "Consultation Cancelled",
-    completed: "Consultation Marked Completed",
+    completed: "Consultation Completed — Please Rate Your Advocate",
   };
 
   const notificationMessage =
     newStatus === "confirmed" && appt.consultation_type === "video"
-      ? `Advocate confirmed your video appointment on ${appt.appointment_date} at ${appt.start_time}. Please complete payment to unlock your consultation room.`
-      : `Your appointment for ${appt.appointment_date} at ${appt.start_time} has been marked as ${newStatus}.`;
+      ? `Advocate confirmed your video appointment on ${appt.appointment_date} at ${appt.start_time}. Please complete Stripe Sandbox escrow payment to unlock your consultation room.`
+      : newStatus === "completed"
+        ? `Your consultation for ${appt.appointment_date} at ${appt.start_time} is complete. Please submit your mandatory 1–5 star rating.`
+        : `Your appointment for ${appt.appointment_date} at ${appt.start_time} has been marked as ${newStatus}.${notes ? ` Note: ${notes}` : ""}`;
 
   await sendNotification(
     targetUserId,

@@ -16,9 +16,9 @@ import { z } from "zod";
 
 import { getAiConfig } from "@/lib/ai/config";
 import { generateEmbedding } from "@/lib/ai/embeddings";
-import { chatCompletion, OpenRouterError } from "@/lib/ai/openrouter";
+import { chatCompletion, GeminiError } from "@/lib/ai/gemini";
 import { legalAnswerSchema, type LegalAnswer } from "@/lib/ai/schemas";
-import { dedupeChunks, retrieveLegalChunks } from "@/lib/rag/retrieval";
+import { dedupeChunks, retrieveLegalChunks, type RetrievedChunk } from "@/lib/rag/retrieval";
 import { classifyQuery } from "@/lib/rag/classifier";
 import {
   buildGenerationUserPrompt,
@@ -33,11 +33,19 @@ import {
 import { extractLawyerIntent } from "@/lib/lawyers/lawyer-intent";
 import { recommendLawyers, type RecommendedLawyer } from "@/lib/lawyers/recommend-lawyers";
 
+export interface PrivateDocumentContext {
+  id: string;
+  fileName: string;
+  content: string;
+}
+
 export interface LegalRagContext {
   supabase: SupabaseClient;
   userId: string;
   conversationId?: string | null;
   question: string;
+  /** Optional user-scoped private file for File-Based RAG mode */
+  privateDocument?: PrivateDocumentContext | null;
   /** Overrides for tests/evaluation (no LLM rewrite, fixed conversation). */
   skipHistoryRewrite?: boolean;
   debugMode?: boolean;
@@ -172,17 +180,11 @@ async function insufficientAnswer(input: {
 }
 
 export async function askLegalQuestion(context: LegalRagContext): Promise<RagAnswer> {
-  const { supabase, userId, question, conversationId } = context;
+  const { supabase, userId, question, conversationId, privateDocument } = context;
   const cfg = getAiConfig();
 
-  if (!cfg.embeddingApiKey) {
-    throw new RagPipelineError(
-      "Embedding API key is not configured (EMBEDDING_API_KEY / OPENROUTER_API_KEY).",
-      "config"
-    );
-  }
-  if (!cfg.openRouterApiKey) {
-    throw new RagPipelineError("OPENROUTER_API_KEY is not configured.", "config");
+  if (!cfg.geminiApiKey) {
+    throw new RagPipelineError("GEMINI_API_KEY is not configured.", "config");
   }
 
   const history = await loadRecentHistory(supabase, userId, conversationId);
@@ -221,24 +223,47 @@ export async function askLegalQuestion(context: LegalRagContext): Promise<RagAns
     );
   }
 
-  // 4 — retrieve. Filters only apply when classifier confidence is high;
-  // otherwise we search the whole verified corpus.
-  const highConfidence = classification.confidence === "high";
-  const retrieved = await retrieveLegalChunks(supabase, {
+  // 4 — retrieve. Search the verified corpus. We only narrow by category if the corpus
+  // actually returns chunks with that category, otherwise fall back to searching all documents.
+  let retrieved = await retrieveLegalChunks(supabase, {
     queryEmbedding,
     matchCount: cfg.maxRetrievedChunks,
     similarityThreshold: cfg.similarityThreshold,
-    category: highConfidence ? classification.category : null,
-    jurisdictionLevel: highConfidence ? classification.jurisdictionLevel : null,
-    province: highConfidence ? classification.province : null,
+    category: null, // Search across full verified corpus for maximal recall
+    jurisdictionLevel: null,
+    province: null,
     debug: context.debugMode,
   });
 
   const chunks = dedupeChunks(retrieved, 4);
 
+  if (privateDocument && privateDocument.content.trim().length > 0) {
+    const privateChunk: RetrievedChunk = {
+      chunkId: privateDocument.id,
+      documentId: privateDocument.id,
+      documentTitle: `[Citizen Private File] ${privateDocument.fileName}`,
+      content: privateDocument.content.slice(0, 6000),
+      sectionNumber: "Private Vault Document",
+      articleNumber: null,
+      sectionTitle: privateDocument.fileName,
+      pageNumber: 1,
+      category: "private_document",
+      jurisdictionLevel: "user_scoped",
+      province: null,
+      officialSourceUrl: null,
+      versionLabel: "User Upload",
+      similarity: 1.0,
+      verificationStatus: "verified",
+    };
+    chunks.unshift(privateChunk);
+  }
+
   if (chunks.length === 0) {
+    console.warn("[askLegalQuestion] 0 chunks retrieved for:", standaloneQuestion);
     return await insufficientAnswer({ question, standaloneQuestion, classification });
   }
+
+  console.log(`[askLegalQuestion] Retrieved ${chunks.length} chunks. Top chunk: ${chunks[0].documentTitle} (sim ${chunks[0].similarity})`);
 
   // 5 — grounded generation.
   const messages = buildGenerationUserPrompt({
@@ -254,7 +279,7 @@ export async function askLegalQuestion(context: LegalRagContext): Promise<RagAns
     llmText = res.content;
     llmModel = res.model;
   } catch (err) {
-    if (err instanceof OpenRouterError) {
+    if (err instanceof GeminiError) {
       throw new RagPipelineError(err.message, err.kind === "config" ? "config" : "llm");
     }
     throw err;
@@ -270,7 +295,20 @@ export async function askLegalQuestion(context: LegalRagContext): Promise<RagAns
       : new RagPipelineError(`Could not parse the model's answer: ${(err as Error).message}`, "validation");
   }
 
+  console.log("[askLegalQuestion] Parsed LLM output:", {
+    summary: parsed.summary,
+    insufficient_context: parsed.insufficient_context,
+    confidence: parsed.confidence,
+    citations_count: Array.isArray(parsed.citations) ? parsed.citations.length : 0,
+  });
+
   const answer = validateAnswer(parsed);
+
+  // If LLM identifies that the knowledge base lacks sufficient context or cannot answer
+  if (answer.insufficient_context) {
+    console.warn("[askLegalQuestion] LLM reported insufficient_context: true");
+    return await insufficientAnswer({ question, standaloneQuestion, classification });
+  }
   const lookup = buildCitationLookup(chunks);
   const citations = validateCitations(answer.citations, lookup);
   const sources = buildSources(chunks, citations);
@@ -298,10 +336,10 @@ export async function askLegalQuestion(context: LegalRagContext): Promise<RagAns
     standaloneQuestion,
     classification,
     retrieved: {
-      count: retrieved.length,
+      count: chunks.length,
       categories,
       documents,
-      maxSimilarity: Math.max(...retrieved.map((c) => c.similarity), 0),
+      maxSimilarity: Math.max(...chunks.map((c) => c.similarity), 0),
     },
     answerText: answer.answer,
     summary: answer.summary,

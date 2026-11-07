@@ -1,6 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
-  HelpCircle,
   ShieldCheck,
   Video,
   Wallet,
@@ -8,24 +8,40 @@ import {
   Mail,
   Phone,
   FileQuestion,
-  ExternalLink,
   BookOpen,
   ArrowRight,
   CheckCircle2,
-  AlertCircle,
   Scale,
 } from "lucide-react";
+import { getAuthState } from "@/lib/auth/profile";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { SupportTicketsClient } from "@/components/dashboard/support-tickets-client";
+import type { SupportTicket } from "@/lib/types/legal";
 
 export const metadata = {
   title: "Advocate Help & Support | Lawyer Portal",
   description: "Guidelines, regulatory compliance FAQs, and platform support for Pakistani advocates.",
 };
 
-export default function LawyerSupportPage() {
+export default async function LawyerSupportPage() {
+  const { user } = await getAuthState();
+  if (!user) redirect("/login");
+
+  const supabase = createAdminClient() ?? (await createClient());
+  let tickets: SupportTicket[] = [];
+  if (supabase) {
+    const { data } = await supabase
+      .from("support_tickets")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+    if (data) tickets = data as SupportTicket[];
+  }
+
   const faqs = [
     {
       q: "How does the Bar Council verification process work?",
@@ -37,31 +53,31 @@ export default function LawyerSupportPage() {
     },
     {
       q: "How are video consultations conducted?",
-      a: "LegalEase integrates secure, browser-based encrypted video rooms powered by Jitsi Meet. No client or lawyer software download is required. When a consultation is confirmed, both you and the client receive access to the room on your respective dashboards. Video rooms unlock 10 minutes prior to the scheduled start time.",
+      a: "LegalEase integrates secure, browser-based encrypted video rooms powered by Jitsi Meet. No client or lawyer software download is required. When a consultation is confirmed, both you and the client receive access to the room on your respective dashboards. Video rooms unlock 15 minutes prior to the scheduled start time once escrow payment is confirmed.",
     },
     {
       q: "What is the cancellation and rescheduling policy?",
-      a: "Under LegalEase Advocate Terms and Pakistan Bar Council standards, advocates may decline consultation requests before confirmation or cancel confirmed sessions in case of court emergencies (such as sudden cause list calls). When cancelling, you must provide a reason so the client is promptly notified via SMS/email and their slot is freed.",
+      a: "Under LegalEase Advocate Terms and Pakistan Bar Council standards, advocates may decline consultation requests before confirmation or cancel confirmed sessions in case of court emergencies (such as sudden cause list calls). When cancelling, you must provide a reason so the client is promptly notified via email and their slot is freed.",
     },
     {
       q: "How are consultation fees and settlements handled?",
-      a: "You define your consultation rate (in PKR) for 30 or 60 minute sessions in your Chamber Profile. Citizens settle the consultation fee upon booking through secure digital payment rails (Easypaisa, JazzCash, 1Link bank transfer, or card). Settled earnings are disbursed directly to your designated bank account according to the platform payout schedule.",
+      a: "You define your consultation rate (in PKR) in your Chamber Profile. Citizens settle the consultation fee upon booking confirmation through Stripe Sandbox Escrow. Settled earnings (90% net advocate share after 10% platform commission) are disbursed directly to your designated bank account.",
     },
     {
       q: "How are confidential citizen documents protected?",
-      a: "Client attachments, intake notes, and consultation materials are strictly confidential. They are stored in private Supabase Storage buckets with Row Level Security (RLS) enforcement. Only the appointed advocate and the client have authorized decryption access. Intake files are never made globally searchable or shared with other lawyers.",
+      a: "Client attachments, intake notes, and consultation materials are strictly confidential. They are stored in private Supabase Storage buckets with Row Level Security (RLS) enforcement.",
     },
   ];
 
   return (
-    <div className="space-y-8 max-w-5xl">
+    <div className="space-y-8 max-w-6xl">
       {/* Header */}
       <div>
         <h2 className="font-heading text-2xl font-bold tracking-tight text-navy">
           Advocate Help & Support Center
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Guidance on bar verification, court scheduling, encrypted video rooms, and platform support.
+          Submit a formal support ticket, review bar verification & settlement guidelines, or contact the compliance desk.
         </p>
       </div>
 
@@ -147,6 +163,9 @@ export default function LawyerSupportPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Interactive Support Ticket System */}
+      <SupportTicketsClient initialTickets={tickets} roleLabel="Advocate" />
 
       {/* FAQs Section */}
       <Card className="border-border">

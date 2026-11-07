@@ -536,8 +536,8 @@ export function LawyerSearchView({ initialLawyers }: LawyerSearchViewProps) {
                       <Link href={`/citizen/lawyers/${lawyer.id}`}>Profile</Link>
                     </Button>
                     <Button asChild size="sm" className="h-8 bg-navy text-white hover:bg-navy/90 text-xs">
-                      <Link href={`/citizen/lawyers/${lawyer.id}?book=true`}>
-                        <CalendarClock className="mr-1 size-3.5" />
+                      <Link href={`/citizen/appointments/book?lawyerId=${lawyer.id}`}>
+                        <CalendarClock className="mr-1 size-3.5 text-gold" />
                         Book
                       </Link>
                     </Button>

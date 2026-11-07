@@ -12,7 +12,11 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-export default async function AiAssistantPage() {
+interface AiAssistantPageProps {
+  searchParams: Promise<{ id?: string; fileId?: string }>;
+}
+
+export default async function AiAssistantPage({ searchParams }: AiAssistantPageProps) {
   const supabase = await createClient();
 
   if (!supabase) {
@@ -36,5 +40,12 @@ export default async function AiAssistantPage() {
     redirect(dashboardPathForRole("admin"));
   }
 
-  return <ChatInterface />;
+  const resolvedParams = await searchParams;
+
+  return (
+    <ChatInterface
+      initialConversationId={resolvedParams.id ?? null}
+      initialFileId={resolvedParams.fileId ?? null}
+    />
+  );
 }

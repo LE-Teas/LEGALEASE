@@ -212,7 +212,7 @@ async function ingestFile(
     .maybeSingle();
 
   if (existing.data) {
-    if (!opts.reprocess) {
+    if (!opts.reprocess && existing.data.processing_status === 'ready') {
       log("skip", `${name} is an exact duplicate of an existing document (status=${existing.data.processing_status}).`);
       stats.filesScanned += 1;
       stats.duplicatesSkipped += 1;

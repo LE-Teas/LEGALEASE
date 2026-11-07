@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
   title: "RAG Diagnostic Testing | Admin Portal",
-  description: "Test query classification, vector chunk retrieval, and grounded OpenRouter completions.",
+  description: "Test query classification, vector chunk retrieval, and grounded LegalEase AI completions.",
   robots: { index: false },
 };
 

@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/server";
 import { chatRequestSchema } from "@/lib/ai/schemas";
-import { askLegalQuestion, RagPipelineError } from "@/lib/rag/legal-rag";
+import { askLegalQuestion, RagPipelineError, type PrivateDocumentContext } from "@/lib/rag/legal-rag";
 import { rateLimit } from "@/lib/rag/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +45,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!parsed.success) {
     return jsonError(400, z.prettifyError(parsed.error));
   }
-  const { message, conversation_id } = parsed.data;
+  const { message, conversation_id, file_id } = parsed.data;
 
   const {
     data: { user },
@@ -61,6 +61,25 @@ export async function POST(request: Request): Promise<NextResponse> {
       { error: "You have reached the message limit. Please wait a moment and try again." },
       { status: 429, headers: { "Retry-After": String(Math.ceil(limit.retryAfterMs / 1000)) } }
     );
+  }
+
+  // Fetch user-scoped private file if file_id is supplied (strictly scoped to citizen_id = user.id)
+  let privateDocument: PrivateDocumentContext | null = null;
+  if (file_id) {
+    const { data: fileRow } = await supabase
+      .from("citizen_files")
+      .select("id, file_name, extracted_text")
+      .eq("id", file_id)
+      .eq("citizen_id", user.id)
+      .maybeSingle();
+
+    if (fileRow && fileRow.extracted_text) {
+      privateDocument = {
+        id: fileRow.id,
+        fileName: fileRow.file_name,
+        content: fileRow.extracted_text,
+      };
+    }
   }
 
   // Verify conversation ownership if a conversation is supplied.
@@ -112,21 +131,23 @@ export async function POST(request: Request): Promise<NextResponse> {
       userId: user.id,
       conversationId: conversationId,
       question: message,
+      privateDocument,
     });
   } catch (err) {
+    console.error("[legal/chat] askLegalQuestion error:", err);
     if (err instanceof RagPipelineError) {
       const status = err.kind === "config" ? 500 : 502;
       const detail =
         err.kind === "config"
           ? "The AI assistant is not fully configured."
-          : "The AI service returned an error. Please try again shortly.";
+          : `The AI service returned an error: ${err.message}`;
       return jsonError(status, detail);
     }
-    return jsonError(502, "Unexpected error while answering. Please try again.");
+    const message = err instanceof Error ? err.message : "Unexpected error while answering.";
+    return jsonError(502, `Unexpected error: ${message}`);
   }
 
   try {
-
     const recommendedLawyers = answer.recommendedLawyers || [];
     const structuredResponse = {
       summary: answer.summary,
@@ -144,6 +165,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       retrieved_categories: answer.retrieved.categories,
       retrieved_documents: answer.retrieved.documents,
       llm_model: answer.llmModel,
+      private_file_id: privateDocument?.id ?? null,
+      private_file_name: privateDocument?.fileName ?? null,
     };
 
     const { data: assistantMessage, error: assistantError } = await supabase

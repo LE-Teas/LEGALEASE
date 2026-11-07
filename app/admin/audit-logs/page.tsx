@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { FileText, ShieldAlert, Clock, Download, Search, CheckCircle2 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { FileText, ShieldAlert, Download, Search } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export const metadata: Metadata = {
   title: "Admin Audit Trail | LegalEase Admin",
-  description: "Immutable log of administrator decisions, verification updates, and policy modifications.",
+  description:
+    "Immutable log of administrator decisions, verification updates, and policy modifications.",
   robots: { index: false },
 };
 
@@ -22,9 +23,11 @@ interface PageProps {
 interface AuditLogRow {
   id: string;
   action: string;
-  target_type: string;
-  target_id: string | null;
-  changes: Record<string, unknown> | null;
+  entity_type: string;
+  entity_id: string | null;
+  old_values: Record<string, unknown> | null;
+  new_values: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
   created_at: string;
   admin?: { full_name: string | null; email: string | null } | null;
 }
@@ -41,9 +44,11 @@ export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
       .select(`
         id,
         action,
-        target_type,
-        target_id,
-        changes,
+        entity_type,
+        entity_id,
+        old_values,
+        new_values,
+        metadata,
         created_at,
         admin:profiles!admin_audit_logs_admin_id_fkey(full_name, email)
       `)
@@ -62,7 +67,7 @@ export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
         logs = logs.filter(
           (l) =>
             l.action?.toLowerCase().includes(q) ||
-            l.target_type?.toLowerCase().includes(q) ||
+            l.entity_type?.toLowerCase().includes(q) ||
             l.admin?.full_name?.toLowerCase().includes(q)
         );
       }
@@ -79,11 +84,17 @@ export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
             Administrator Audit Trail
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Immutable log recording privileged advocate approvals, account suspensions, policy updates, and system decisions.
+            Immutable log recording privileged advocate approvals, account suspensions,
+            policy updates, and system decisions.
           </p>
         </div>
 
-        <Button asChild variant="outline" size="sm" className="text-xs gap-1.5 border-slate-200">
+        <Button
+          asChild
+          variant="outline"
+          size="sm"
+          className="text-xs gap-1.5 border-slate-200"
+        >
           <a href="/api/admin/reports/export?type=audit_logs" download>
             <Download className="size-3.5 text-[#0CA275]" />
             Export Audit Log (CSV)
@@ -95,7 +106,13 @@ export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
       <div className="rounded-lg bg-slate-50 border border-slate-200 p-3.5 text-xs text-slate-700 flex items-start gap-2.5">
         <ShieldAlert className="size-4 text-[#0CA275] shrink-0 mt-0.5" />
         <div>
-          <strong className="font-semibold text-slate-900">Security & Privacy Invariant:</strong> Audit logs capture the acting administrator ID, operation category, entity reference, and delta snapshot. Sensitive plaintext passwords, private client documents, and raw unmasked CNIC credentials are never retained in audit records.
+          <strong className="font-semibold text-slate-900">
+            Security & Privacy Invariant:
+          </strong>{" "}
+          Audit logs capture the acting administrator ID, operation category, entity
+          reference, and delta snapshot. Sensitive plaintext passwords, private client
+          documents, and raw unmasked CNIC credentials are never retained in audit
+          records.
         </div>
       </div>
 
@@ -171,25 +188,38 @@ export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
                         {new Date(log.created_at).toLocaleString()}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-900">{log.admin?.full_name || "Administrator"}</div>
-                        <div className="text-[10px] text-slate-400">{log.admin?.email}</div>
+                        <div className="font-semibold text-slate-900">
+                          {log.admin?.full_name || "Administrator"}
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          {log.admin?.email}
+                        </div>
                       </td>
                       <td className="py-3 px-4">
-                        <Badge variant="outline" className="text-[10px] font-mono bg-slate-50 text-slate-800 border-slate-300">
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-mono bg-slate-50 text-slate-800 border-slate-300"
+                        >
                           {log.action}
                         </Badge>
                       </td>
                       <td className="py-3 px-4">
-                        <span className="font-medium text-slate-800 capitalize">{log.target_type}</span>
-                        {log.target_id && (
+                        <span className="font-medium text-slate-800 capitalize">
+                          {log.entity_type}
+                        </span>
+                        {log.entity_id && (
                           <div className="text-[10px] font-mono text-slate-400 truncate max-w-[140px]">
-                            {log.target_id}
+                            {log.entity_id}
                           </div>
                         )}
                       </td>
                       <td className="py-3 px-4 max-w-xs">
                         <pre className="font-mono text-[10px] text-slate-700 bg-slate-50 p-1.5 rounded border border-slate-100 overflow-x-auto max-h-20">
-                          {JSON.stringify(log.changes, null, 2)}
+                          {JSON.stringify(
+                            log.new_values || log.old_values || log.metadata || {},
+                            null,
+                            2
+                          )}
                         </pre>
                       </td>
                     </tr>

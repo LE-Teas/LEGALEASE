@@ -1,6 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getSupabaseEnv } from "@/lib/config/supabase";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+export { createAdminClient };
 
 /**
  * Server-side Supabase client (Server Components, Server Actions, Route

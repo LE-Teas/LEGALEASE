@@ -5,7 +5,6 @@ import { getErrorMessage } from "@/lib/errors";
 import Link from "next/link";
 import {
   Check,
-  KeyRound,
   Loader2,
   Lock,
   Shield,
@@ -45,16 +44,18 @@ export function LawyerSettingsView({ profile, lawyerProfile }: LawyerSettingsVie
   const [offersInPerson, setOffersInPerson] = useState(lawyerProfile?.offers_in_person ?? true);
   const [offersVideo, setOffersVideo] = useState(lawyerProfile?.offers_video ?? true);
   const [offersPhone, setOffersPhone] = useState(lawyerProfile?.offers_phone ?? false);
-  const [isPublished, setIsPublished] = useState(lawyerProfile?.is_published ?? true);
+  const [isPublished, setIsPublished] = useState(lawyerProfile?.is_published ?? false);
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [prefsSuccess, setPrefsSuccess] = useState(false);
   const [prefsError, setPrefsError] = useState<string | null>(null);
 
-  // Notification Preferences State (client-side toggle)
-  const [notifAppointments, setNotifAppointments] = useState(true);
-  const [notifReviews, setNotifReviews] = useState(true);
-  const [notifVerification, setNotifVerification] = useState(true);
-  const [notifDigest, setNotifDigest] = useState(false);
+  // Notification Preferences State (persisted to profiles.notification_preferences)
+  const initialNotifs = profile.notification_preferences ?? {};
+  const [notifAppointments, setNotifAppointments] = useState(initialNotifs.email_appointments ?? true);
+  const [notifReviews, setNotifReviews] = useState(initialNotifs.email_reviews ?? true);
+  const [notifVerification, setNotifVerification] = useState(initialNotifs.email_system ?? true);
+  const [notifDigest, setNotifDigest] = useState(initialNotifs.weekly_digest ?? false);
+  const [savingNotifs, setSavingNotifs] = useState(false);
   const [notifSaved, setNotifSaved] = useState(false);
 
   const handlePasswordChange = async (e: React.FormEvent) => {
@@ -123,9 +124,30 @@ export function LawyerSettingsView({ profile, lawyerProfile }: LawyerSettingsVie
     }
   };
 
-  const handleSaveNotificationPrefs = () => {
-    setNotifSaved(true);
-    setTimeout(() => setNotifSaved(false), 3000);
+  const handleSaveNotificationPrefs = async () => {
+    setSavingNotifs(true);
+    setNotifSaved(false);
+    try {
+      const res = await fetch("/api/lawyer/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          notification_preferences: {
+            email_appointments: notifAppointments,
+            email_payments: true,
+            email_reviews: notifReviews,
+            email_system: notifVerification,
+            weekly_digest: notifDigest,
+          },
+        }),
+      });
+      if (res.ok) {
+        setNotifSaved(true);
+        setTimeout(() => setNotifSaved(false), 3000);
+      }
+    } finally {
+      setSavingNotifs(false);
+    }
   };
 
   return (
@@ -328,7 +350,7 @@ export function LawyerSettingsView({ profile, lawyerProfile }: LawyerSettingsVie
                       Publish my profile in Citizen Find a Lawyer directory
                     </label>
                     <p className="text-[11px] text-muted-foreground">
-                      Unchecking this temporarily hides your profile from citizen searches without deleting your records.
+                      Requires verified Bar Council status. Unchecking this temporarily hides your profile from citizen searches.
                     </p>
                   </div>
                 </div>
@@ -379,10 +401,10 @@ export function LawyerSettingsView({ profile, lawyerProfile }: LawyerSettingsVie
           <Card className="border-border">
             <CardHeader>
               <CardTitle className="font-heading text-lg text-navy">
-                Notification Preferences
+                Notification Preferences (SMTP Email & Portal)
               </CardTitle>
               <CardDescription className="text-xs">
-                Choose what alerts and reminders you receive via email and portal banners.
+                Choose what alerts and reminders you receive via email ({profile.email}) and portal banners.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 max-w-lg">
@@ -390,7 +412,7 @@ export function LawyerSettingsView({ profile, lawyerProfile }: LawyerSettingsVie
                 <Alert className="border-emerald-500/30 bg-emerald-50 text-emerald-800">
                   <Check className="size-4 text-emerald-600" />
                   <AlertDescription className="text-xs">
-                    Notification preferences saved.
+                    Notification preferences saved to database.
                   </AlertDescription>
                 </Alert>
               )}
@@ -404,10 +426,10 @@ export function LawyerSettingsView({ profile, lawyerProfile }: LawyerSettingsVie
                   />
                   <div className="grid gap-0.5 leading-none">
                     <label htmlFor="notif_appts" className="text-xs font-medium text-slate-700 cursor-pointer">
-                      New Consultation Requests
+                      New Consultation Requests & Client Messages
                     </label>
                     <p className="text-[11px] text-muted-foreground">
-                      Immediate alert when a citizen books an appointment slot
+                      Immediate SMTP email & portal alert when a citizen books a slot or sends a message
                     </p>
                   </div>
                 </div>
@@ -436,10 +458,10 @@ export function LawyerSettingsView({ profile, lawyerProfile }: LawyerSettingsVie
                   />
                   <div className="grid gap-0.5 leading-none">
                     <label htmlFor="notif_ver" className="text-xs font-medium text-slate-700 cursor-pointer">
-                      Bar Council Verification Updates
+                      Bar Council Verification & Admin Updates
                     </label>
                     <p className="text-[11px] text-muted-foreground">
-                      Notices regarding license verification and compliance checks
+                      Notices regarding license verification, support tickets, and compliance checks
                     </p>
                   </div>
                 </div>
@@ -462,8 +484,14 @@ export function LawyerSettingsView({ profile, lawyerProfile }: LawyerSettingsVie
               </div>
 
               <div className="pt-2">
-                <Button onClick={handleSaveNotificationPrefs} variant="outline" size="sm" className="text-xs">
-                  Save Notification Preferences
+                <Button
+                  onClick={handleSaveNotificationPrefs}
+                  disabled={savingNotifs}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                >
+                  {savingNotifs ? "Saving..." : "Save Notification Preferences"}
                 </Button>
               </div>
             </CardContent>

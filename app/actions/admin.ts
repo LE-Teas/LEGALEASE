@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { getAuthState } from "@/lib/auth/profile";
+import { sendNotification } from "@/lib/services/notifications";
 import type { VerificationStatus } from "@/lib/types/legal";
 
 async function assertAdmin() {
@@ -11,6 +12,32 @@ async function assertAdmin() {
     throw new Error("Unauthorized. Administrator privileges required.");
   }
   return { user, profile };
+}
+
+async function logAdminAudit(params: {
+  adminId: string;
+  action: string;
+  entityType: string;
+  entityId?: string | null;
+  oldValues?: Record<string, unknown> | null;
+  newValues?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown>;
+}) {
+  try {
+    const supabase = createAdminClient() ?? (await createClient());
+    if (!supabase) return;
+    await supabase.from("admin_audit_logs").insert({
+      admin_id: params.adminId,
+      action: params.action,
+      entity_type: params.entityType,
+      entity_id: params.entityId ?? null,
+      old_values: params.oldValues ?? null,
+      new_values: params.newValues ?? null,
+      metadata: params.metadata ?? {},
+    });
+  } catch {
+    // Non-fatal
+  }
 }
 
 /**
@@ -35,32 +62,45 @@ export async function updateLawyerVerificationAction(
     p_lawyer_visible_note: lawyerVisibleNote || null,
   });
 
-  if (!rpcErr) {
-    revalidatePath("/admin");
-    revalidatePath("/admin/lawyers");
-    revalidatePath("/lawyer/verification");
-    revalidatePath("/citizen/lawyers");
-    return { success: true };
-  }
-
-  // Fallback: Direct database updates if RPC is not yet loaded in Supabase
   const isPublished = status === "verified";
 
-  // Update verification record
-  await supabase
-    .from("lawyer_verifications")
-    .update({
-      status,
-      admin_note: adminNote || null,
-      lawyer_visible_note: lawyerVisibleNote || null,
-      reviewed_by: user.id,
-      reviewed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("lawyer_id", lawyerId);
+  if (rpcErr) {
+    await supabase
+      .from("lawyer_verifications")
+      .update({
+        status,
+        admin_note: adminNote || null,
+        lawyer_visible_note: lawyerVisibleNote || null,
+        reviewed_by: user.id,
+        reviewed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("lawyer_id", lawyerId);
 
-  // Update lawyer profile status & publication visibility
-  const { error: profErr } = await supabase
+    const { error: profErr } = await supabase
+      .from("lawyer_profiles")
+      .update({
+        verification_status: status,
+        is_published: isPublished,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", lawyerId);
+
+    if (profErr) {
+      throw new Error(profErr.message);
+    }
+
+    await logAdminAudit({
+      adminId: user.id,
+      action: `lawyer_verification_${status}`,
+      entityType: "lawyer_profile",
+      entityId: lawyerId,
+      newValues: { status, is_published: isPublished, admin_note: adminNote },
+    });
+  }
+
+  // Ensure lawyer_profiles is synced even after RPC
+  await supabase
     .from("lawyer_profiles")
     .update({
       verification_status: status,
@@ -69,45 +109,23 @@ export async function updateLawyerVerificationAction(
     })
     .eq("id", lawyerId);
 
-  if (profErr) {
-    throw new Error(profErr.message);
-  }
-
-  // Audit log fallback
-  try {
-    await supabase.from("admin_audit_logs").insert({
-      admin_id: user.id,
-      action: `lawyer_verification_${status}`,
-      target_type: "lawyer_profile",
-      target_id: lawyerId,
-      changes: { status, is_published: isPublished, admin_note: adminNote },
-    });
-  } catch {
-    // Non-fatal
-  }
-
-  // Notify lawyer
   const statusTitles: Record<string, string> = {
     verified: "Your Advocate Verification Has Been Approved!",
     rejected: "Verification Application Update",
     needs_info: "Additional Information Needed for Verification",
+    suspended: "Advocate Verification Suspended",
   };
 
-  try {
-    await supabase.from("notifications").insert({
-      user_id: lawyerId,
-      type: `verification_${status}`,
-      title: statusTitles[status] || "Verification Status Updated",
-      message:
-        lawyerVisibleNote ||
-        (status === "verified"
-          ? "Congratulations! Your profile is verified and now visible to citizens for booking."
-          : "Your verification request has been updated by the administration."),
-      metadata: { status, admin_note: adminNote },
-    });
-  } catch {
-    // Non-fatal
-  }
+  await sendNotification(
+    lawyerId,
+    `verification_${status}`,
+    statusTitles[status] || "Verification Status Updated",
+    lawyerVisibleNote ||
+      (status === "verified"
+        ? "Congratulations! Your profile is verified and now visible to citizens for booking."
+        : "Your verification request has been updated by the administration."),
+    { status, admin_note: adminNote }
+  );
 
   revalidatePath("/admin");
   revalidatePath("/admin/lawyers");
@@ -118,49 +136,81 @@ export async function updateLawyerVerificationAction(
 }
 
 /**
- * Admin action to update platform settings (fees, tax, terms).
+ * Admin action to update a single platform setting.
  */
 export async function updatePlatformSettingAction(key: string, value: string) {
   const { user } = await assertAdmin();
-  const supabase = await createClient();
+  const supabase = createAdminClient() ?? (await createClient());
   if (!supabase) throw new Error("Database unavailable.");
 
-  // Try RPC
-  const { error: rpcErr } = await supabase.rpc("admin_update_platform_setting", {
-    p_key: key,
-    p_value: value,
-  });
-
-  if (!rpcErr) {
-    revalidatePath("/admin/settings");
-    return { success: true };
-  }
-
-  // Fallback direct upsert
   const { error } = await supabase
     .from("platform_settings")
-    .upsert({
-      key,
-      value,
-      updated_by: user.id,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "key" });
+    .upsert(
+      {
+        key,
+        value,
+        updated_by: user.id,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" }
+    );
 
   if (error) throw new Error(error.message);
 
-  try {
-    await supabase.from("admin_audit_logs").insert({
-      admin_id: user.id,
-      action: "update_platform_setting",
-      target_type: "platform_settings",
-      target_id: key,
-      changes: { key, value },
-    });
-  } catch {
-    // Non-fatal
-  }
+  await logAdminAudit({
+    adminId: user.id,
+    action: "update_platform_setting",
+    entityType: "platform_settings",
+    entityId: key,
+    newValues: { key, value: key.includes("pass") || key.includes("secret") || key.includes("key") ? "***" : value },
+  });
 
   revalidatePath("/admin/settings");
+  revalidatePath("/admin/notifications");
+  return { success: true };
+}
+
+/**
+ * Admin action to update multiple platform settings in one batch (SMTP, IMAP, Stripe Sandbox, General).
+ */
+export async function updatePlatformSettingsBatchAction(entries: Record<string, string>) {
+  const { user } = await assertAdmin();
+  const supabase = createAdminClient() ?? (await createClient());
+  if (!supabase) throw new Error("Database unavailable.");
+
+  const nowIso = new Date().toISOString();
+  const rows = Object.entries(entries).map(([key, value]) => ({
+    key,
+    value,
+    updated_by: user.id,
+    updated_at: nowIso,
+  }));
+
+  const { error } = await supabase
+    .from("platform_settings")
+    .upsert(rows, { onConflict: "key" });
+
+  if (error) throw new Error(error.message);
+
+  const redacted: Record<string, string> = {};
+  for (const [k, v] of Object.entries(entries)) {
+    redacted[k] =
+      k.includes("pass") || k.includes("secret") || k.includes("api_key")
+        ? v ? "***configured***" : ""
+        : v;
+  }
+
+  await logAdminAudit({
+    adminId: user.id,
+    action: "update_platform_settings_batch",
+    entityType: "platform_settings",
+    entityId: Object.keys(entries).join(","),
+    newValues: redacted,
+  });
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin/notifications");
+  revalidatePath("/admin/payments");
   return { success: true };
 }
 
@@ -168,74 +218,87 @@ export async function updatePlatformSettingAction(key: string, value: string) {
  * Admin action to update AI & RAG settings.
  */
 export async function updatePlatformAiSettingsAction(settings: {
-  provider: string;
+  provider?: string;
   model: string;
+  embedding_model?: string;
   temperature: number;
   max_tokens: number;
   rag_enabled: boolean;
   similarity_threshold: number;
   match_count: number;
+  maintenance_mode?: boolean;
   system_prompt_override?: string | null;
 }) {
   const { user } = await assertAdmin();
-  const supabase = await createClient();
+  const supabase = createAdminClient() ?? (await createClient());
   if (!supabase) throw new Error("Database unavailable.");
 
-  // Try RPC
   const { error: rpcErr } = await supabase.rpc("admin_update_ai_settings", {
-    p_provider: settings.provider,
-    p_model: settings.model,
+    p_generation_model: settings.model,
+    p_embedding_model: settings.embedding_model || "text-embedding-3-small",
     p_temperature: settings.temperature,
     p_max_tokens: settings.max_tokens,
-    p_rag_enabled: settings.rag_enabled,
+    p_retrieval_top_k: settings.match_count,
     p_similarity_threshold: settings.similarity_threshold,
-    p_match_count: settings.match_count,
-    p_system_prompt_override: settings.system_prompt_override || null,
+    p_rag_enabled: settings.rag_enabled,
+    p_maintenance_mode: settings.maintenance_mode ?? false,
   });
 
-  if (!rpcErr) {
-    revalidatePath("/admin/settings");
-    return { success: true };
+  if (rpcErr) {
+    const { data: firstRow } = await supabase
+      .from("platform_ai_settings")
+      .select("id")
+      .limit(1)
+      .maybeSingle();
+
+    if (firstRow?.id) {
+      const { error } = await supabase
+        .from("platform_ai_settings")
+        .update({
+          generation_model: settings.model,
+          embedding_model: settings.embedding_model || "text-embedding-3-small",
+          temperature: settings.temperature,
+          max_tokens: settings.max_tokens,
+          rag_enabled: settings.rag_enabled,
+          similarity_threshold: settings.similarity_threshold,
+          retrieval_top_k: settings.match_count,
+          maintenance_mode: settings.maintenance_mode ?? false,
+          updated_by: user.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", firstRow.id);
+
+      if (error) throw new Error(error.message);
+    } else {
+      await supabase.from("platform_ai_settings").insert({
+        generation_model: settings.model,
+        embedding_model: settings.embedding_model || "text-embedding-3-small",
+        temperature: settings.temperature,
+        max_tokens: settings.max_tokens,
+        rag_enabled: settings.rag_enabled,
+        similarity_threshold: settings.similarity_threshold,
+        retrieval_top_k: settings.match_count,
+        maintenance_mode: settings.maintenance_mode ?? false,
+        updated_by: user.id,
+      });
+    }
   }
 
-  // Fallback: update active row
-  const { error } = await supabase
-    .from("platform_ai_settings")
-    .update({
-      provider: settings.provider,
-      model: settings.model,
-      temperature: settings.temperature,
-      max_tokens: settings.max_tokens,
-      rag_enabled: settings.rag_enabled,
-      similarity_threshold: settings.similarity_threshold,
-      match_count: settings.match_count,
-      system_prompt_override: settings.system_prompt_override || null,
-      updated_by: user.id,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("is_active", true);
-
-  if (error) throw new Error(error.message);
-
-  try {
-    await supabase.from("admin_audit_logs").insert({
-      admin_id: user.id,
-      action: "update_ai_settings",
-      target_type: "platform_ai_settings",
-      target_id: "active",
-      changes: settings,
-    });
-  } catch {
-    // Non-fatal
-  }
+  await logAdminAudit({
+    adminId: user.id,
+    action: "update_ai_settings",
+    entityType: "platform_ai_settings",
+    entityId: "singleton",
+    newValues: settings as unknown as Record<string, unknown>,
+  });
 
   revalidatePath("/admin/settings");
+  revalidatePath("/admin/ai-models");
   return { success: true };
 }
 
 /**
  * Admin action to suspend or reactivate a citizen or advocate account.
- * Automatically depublishes lawyer if suspended, and logs audit trail.
  */
 export async function toggleUserStatusAction(
   userId: string,
@@ -243,10 +306,9 @@ export async function toggleUserStatusAction(
   reason?: string
 ) {
   const { user } = await assertAdmin();
-  const supabase = await createClient();
+  const supabase = createAdminClient() ?? (await createClient());
   if (!supabase) throw new Error("Database unavailable.");
 
-  // 1. Update profiles table
   const { error: profErr } = await supabase
     .from("profiles")
     .update({
@@ -257,7 +319,6 @@ export async function toggleUserStatusAction(
 
   if (profErr) throw new Error(profErr.message);
 
-  // 2. If user is a lawyer, ensure publication status matches active state
   if (!isActive) {
     await supabase
       .from("lawyer_profiles")
@@ -269,33 +330,23 @@ export async function toggleUserStatusAction(
       .eq("id", userId);
   }
 
-  // 3. Log to audit trail
-  try {
-    await supabase.from("admin_audit_logs").insert({
-      admin_id: user.id,
-      action: isActive ? "user_account_reactivated" : "user_account_suspended",
-      target_type: "profile",
-      target_id: userId,
-      changes: { is_active: isActive, reason: reason || null },
-    });
-  } catch {
-    // Non-fatal
-  }
+  await logAdminAudit({
+    adminId: user.id,
+    action: isActive ? "user_account_reactivated" : "user_account_suspended",
+    entityType: "profile",
+    entityId: userId,
+    newValues: { is_active: isActive, reason: reason || null },
+  });
 
-  // 4. Notify user if feasible
-  try {
-    await supabase.from("notifications").insert({
-      user_id: userId,
-      type: isActive ? "account_reactivated" : "account_suspended",
-      title: isActive ? "Account Reactivated" : "Account Suspended by Administration",
-      message: isActive
-        ? "Your LegalEase account has been reactivated. You may now access all features."
-        : reason || "Your account has been temporarily restricted by the administration.",
-      metadata: { reason },
-    });
-  } catch {
-    // Non-fatal
-  }
+  await sendNotification(
+    userId,
+    isActive ? "account_reactivated" : "account_suspended",
+    isActive ? "Account Reactivated" : "Account Suspended by Administration",
+    isActive
+      ? "Your LegalEase account has been reactivated. You may now access all features."
+      : reason || "Your account has been temporarily restricted by the administration.",
+    { reason }
+  );
 
   revalidatePath("/admin");
   revalidatePath("/admin/users");
@@ -311,60 +362,65 @@ export async function adminCancelAppointmentAction(
   reason: string
 ) {
   const { user } = await assertAdmin();
-  const supabase = await createClient();
+  const supabase = createAdminClient() ?? (await createClient());
   if (!supabase) throw new Error("Database connection unavailable.");
 
   const { data: appt, error: fetchErr } = await supabase
     .from("appointments")
-    .select("citizen_id, lawyer_id, status")
+    .select("citizen_id, lawyer_id, status, payment_status")
     .eq("id", appointmentId)
     .single();
 
   if (fetchErr || !appt) throw new Error("Appointment not found.");
 
+  const updateData: Record<string, unknown> = {
+    status: "cancelled",
+    cancelled_by: "admin",
+    cancellation_reason: reason,
+    cancelled_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  if (appt.payment_status === "paid") {
+    updateData.payment_status = "refunded";
+    updateData.settlement_status = "failed";
+    await supabase
+      .from("payments")
+      .update({ status: "refunded", updated_at: new Date().toISOString() })
+      .eq("appointment_id", appointmentId);
+  }
+
   const { error } = await supabase
     .from("appointments")
-    .update({
-      status: "cancelled",
-      cancelled_by: "admin",
-      cancellation_reason: reason,
-      cancelled_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
+    .update(updateData)
     .eq("id", appointmentId);
 
   if (error) throw new Error(error.message);
 
-  try {
-    await supabase.from("admin_audit_logs").insert({
-      admin_id: user.id,
-      action: "appointment_cancelled_by_admin",
-      target_type: "appointment",
-      target_id: appointmentId,
-      changes: { previous_status: appt.status, reason },
-    });
+  await logAdminAudit({
+    adminId: user.id,
+    action: "appointment_cancelled_by_admin",
+    entityType: "appointment",
+    entityId: appointmentId,
+    oldValues: { status: appt.status },
+    newValues: { status: "cancelled", reason },
+  });
 
-    // Notify citizen & lawyer
-    const notifyPayload = [
-      {
-        user_id: appt.citizen_id,
-        type: "appointment_cancelled",
-        title: "Consultation Cancelled by Administration",
-        message: `Your booking was cancelled by the platform administrator: ${reason}`,
-        metadata: { appointment_id: appointmentId, reason },
-      },
-      {
-        user_id: appt.lawyer_id,
-        type: "appointment_cancelled",
-        title: "Consultation Cancelled by Administration",
-        message: `Consultation was cancelled by the administrator: ${reason}`,
-        metadata: { appointment_id: appointmentId, reason },
-      },
-    ];
-    await supabase.from("notifications").insert(notifyPayload);
-  } catch {
-    // Non-fatal
-  }
+  await sendNotification(
+    appt.citizen_id,
+    "appointment_cancelled",
+    "Consultation Cancelled by Administration",
+    `Your booking was cancelled by the platform administrator: ${reason}`,
+    { appointment_id: appointmentId, reason }
+  );
+
+  await sendNotification(
+    appt.lawyer_id,
+    "appointment_cancelled",
+    "Consultation Cancelled by Administration",
+    `Consultation was cancelled by the administrator: ${reason}`,
+    { appointment_id: appointmentId, reason }
+  );
 
   revalidatePath("/admin/appointments");
   revalidatePath("/admin");
@@ -380,7 +436,7 @@ export async function moderateReviewAction(
   reason?: string
 ) {
   const { user } = await assertAdmin();
-  const supabase = await createClient();
+  const supabase = createAdminClient() ?? (await createClient());
   if (!supabase) throw new Error("Database unavailable.");
 
   const { data: rev, error: fetchErr } = await supabase
@@ -403,24 +459,20 @@ export async function moderateReviewAction(
 
   if (error) throw new Error(error.message);
 
-  try {
-    await supabase.from("admin_audit_logs").insert({
-      admin_id: user.id,
-      action: isVisible ? "review_restored" : "review_hidden",
-      target_type: "review",
-      target_id: reviewId,
-      changes: { is_visible: isVisible, reason },
-    });
-  } catch {
-    // Non-fatal
-  }
+  await logAdminAudit({
+    adminId: user.id,
+    action: isVisible ? "review_restored" : "review_hidden",
+    entityType: "review",
+    entityId: reviewId,
+    newValues: { is_visible: isVisible, reason },
+  });
 
   revalidatePath("/admin/reviews");
   return { success: true };
 }
 
 /**
- * Admin action to broadcast notification announcements.
+ * Admin action to broadcast notification announcements (in-app + SMTP email).
  */
 export async function broadcastNotificationAction(
   targetRole: "all" | "citizen" | "lawyer",
@@ -428,10 +480,10 @@ export async function broadcastNotificationAction(
   message: string
 ) {
   const { user } = await assertAdmin();
-  const supabase = await createClient();
+  const supabase = createAdminClient() ?? (await createClient());
   if (!supabase) throw new Error("Database unavailable.");
 
-  let query = supabase.from("profiles").select("id");
+  let query = supabase.from("profiles").select("id, email, full_name");
   if (targetRole !== "all") {
     query = query.eq("role", targetRole);
   }
@@ -439,36 +491,23 @@ export async function broadcastNotificationAction(
   const { data: recipients, error } = await query;
   if (error || !recipients) throw new Error("Failed to fetch notification recipients.");
 
-  const records = recipients.map((r) => ({
-    user_id: r.id,
-    type: "platform_announcement",
-    title,
-    message,
-    metadata: { broadcast_by: user.id, target_role: targetRole },
-  }));
-
-  if (records.length > 0) {
-    // Insert in batches of 200
-    for (let i = 0; i < records.length; i += 200) {
-      const batch = records.slice(i, i + 200);
-      await supabase.from("notifications").insert(batch);
-    }
-  }
-
-  try {
-    await supabase.from("admin_audit_logs").insert({
-      admin_id: user.id,
-      action: "platform_notification_broadcast",
-      target_type: "notifications",
-      target_id: targetRole,
-      changes: { recipient_count: records.length, title, message },
+  for (const r of recipients) {
+    await sendNotification(r.id, "platform_announcement", title, message, {
+      broadcast_by: user.id,
+      target_role: targetRole,
     });
-  } catch {
-    // Non-fatal
   }
+
+  await logAdminAudit({
+    adminId: user.id,
+    action: "platform_notification_broadcast",
+    entityType: "notifications",
+    entityId: targetRole,
+    newValues: { recipient_count: recipients.length, title, message },
+  });
 
   revalidatePath("/admin/notifications");
-  return { success: true, count: records.length };
+  return { success: true, count: recipients.length };
 }
 
 /**
@@ -479,12 +518,14 @@ export async function adminSettleAppointmentAction(
   notes?: string
 ) {
   const { user } = await assertAdmin();
-  const supabase = await createClient();
+  const supabase = createAdminClient() ?? (await createClient());
   if (!supabase) throw new Error("Database unavailable.");
 
   const { data: appt, error: fetchErr } = await supabase
     .from("appointments")
-    .select("id, lawyer_id, citizen_id, status, payment_status, settlement_status, lawyer_receivable, total_amount, consultation_fee, platform_fee")
+    .select(
+      "id, lawyer_id, citizen_id, status, payment_status, settlement_status, lawyer_receivable, total_amount, consultation_fee, platform_fee"
+    )
     .eq("id", appointmentId)
     .single();
 
@@ -498,7 +539,10 @@ export async function adminSettleAppointmentAction(
     throw new Error("This consultation payout has already been transferred.");
   }
 
-  const payoutRef = `PAYOUT-1LINK-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+  const payoutRef = `PAYOUT-1LINK-${Date.now()}-${Math.random()
+    .toString(36)
+    .substring(2, 7)
+    .toUpperCase()}`;
 
   const { error: updateErr } = await supabase
     .from("appointments")
@@ -511,35 +555,345 @@ export async function adminSettleAppointmentAction(
 
   if (updateErr) throw new Error(updateErr.message);
 
-  // Audit log
-  try {
-    await supabase.from("admin_audit_logs").insert({
-      admin_id: user.id,
-      action: "consultation_payout_settled",
-      target_type: "appointment",
-      target_id: appointmentId,
-      changes: {
-        payout_reference: payoutRef,
-        lawyer_receivable: appt.lawyer_receivable,
-        platform_fee: appt.platform_fee,
-        notes: notes || null,
-      },
-    });
+  await logAdminAudit({
+    adminId: user.id,
+    action: "consultation_payout_settled",
+    entityType: "appointment",
+    entityId: appointmentId,
+    newValues: {
+      payout_reference: payoutRef,
+      lawyer_receivable: appt.lawyer_receivable,
+      platform_fee: appt.platform_fee,
+      notes: notes || null,
+    },
+  });
 
-    // Notify lawyer
-    await supabase.from("notifications").insert({
-      user_id: appt.lawyer_id,
-      type: "payout_transferred",
-      title: "Consultation Payout Transferred",
-      message: `Your net consultation earnings of Rs. ${Number(appt.lawyer_receivable).toLocaleString()} (Ref: ${payoutRef}) have been settled and routed to your bank account.`,
-      metadata: { appointment_id: appointmentId, payout_reference: payoutRef },
-    });
-  } catch {
-    // Non-fatal
-  }
+  await sendNotification(
+    appt.lawyer_id,
+    "payout_transferred",
+    "Consultation Payout Transferred",
+    `Your net consultation earnings of Rs. ${Number(appt.lawyer_receivable).toLocaleString()} (Ref: ${payoutRef}) have been settled and routed to your bank account.`,
+    { appointment_id: appointmentId, payout_reference: payoutRef }
+  );
 
   revalidatePath("/admin/appointments");
+  revalidatePath("/admin/payments");
   revalidatePath("/admin");
   return { success: true, payoutRef };
 }
 
+/**
+ * Admin action to refund a payment and update the linked appointment.
+ */
+export async function adminRefundPaymentAction(paymentId: string, reason: string) {
+  const { user } = await assertAdmin();
+  const supabase = createAdminClient() ?? (await createClient());
+  if (!supabase) throw new Error("Database unavailable.");
+
+  const { data: payment, error: fetchErr } = await supabase
+    .from("payments")
+    .select("*")
+    .eq("id", paymentId)
+    .single();
+
+  if (fetchErr || !payment) throw new Error("Payment record not found.");
+
+  const { error } = await supabase
+    .from("payments")
+    .update({
+      status: "refunded",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", paymentId);
+
+  if (error) throw new Error(error.message);
+
+  if (payment.appointment_id) {
+    await supabase
+      .from("appointments")
+      .update({
+        payment_status: "refunded",
+        settlement_status: "failed",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", payment.appointment_id);
+  }
+
+  await logAdminAudit({
+    adminId: user.id,
+    action: "payment_refunded_by_admin",
+    entityType: "payment",
+    entityId: paymentId,
+    newValues: {
+      amount: payment.amount,
+      reason,
+      appointment_id: payment.appointment_id,
+    },
+  });
+
+  await sendNotification(
+    payment.citizen_id,
+    "payment_refunded",
+    "Payment Refund Issued",
+    `Your consultation payment of Rs. ${Number(payment.amount).toLocaleString()} (Ref: ${payment.transaction_reference || payment.id.slice(0, 8)}) has been refunded by LegalEase Administration. Reason: ${reason}`,
+    { payment_id: paymentId, reason }
+  );
+
+  revalidatePath("/admin/payments");
+  revalidatePath("/admin/appointments");
+  return { success: true };
+}
+
+/**
+ * Admin action to create or update a public legal resource guide.
+ */
+export async function upsertLegalResourceAction(input: {
+  id?: string;
+  title: string;
+  category: string;
+  reading_time: string;
+  summary: string;
+  content: string;
+  jurisdiction: string;
+}) {
+  const { user } = await assertAdmin();
+  const supabase = createAdminClient() ?? (await createClient());
+  if (!supabase) throw new Error("Database unavailable.");
+
+  const slug =
+    input.id ||
+    input.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+
+  const { error } = await supabase.from("legal_resources").upsert(
+    {
+      id: slug,
+      slug,
+      title: input.title.trim(),
+      category: input.category.trim(),
+      reading_time: input.reading_time.trim() || "5 min read",
+      summary: input.summary.trim(),
+      content: input.content.trim(),
+      jurisdiction: input.jurisdiction.trim() || "Federal & Provincial",
+      updated_date: new Date().getFullYear().toString(),
+    },
+    { onConflict: "id" }
+  );
+
+  if (error) throw new Error(error.message);
+
+  await logAdminAudit({
+    adminId: user.id,
+    action: "upsert_legal_resource",
+    entityType: "legal_resources",
+    entityId: slug,
+    newValues: { title: input.title, category: input.category },
+  });
+
+  revalidatePath("/admin/resources");
+  revalidatePath("/citizen/resources");
+  revalidatePath("/resources");
+  return { success: true, id: slug };
+}
+
+export async function deleteLegalResourceAction(resourceId: string) {
+  const { user } = await assertAdmin();
+  const supabase = createAdminClient() ?? (await createClient());
+  if (!supabase) throw new Error("Database unavailable.");
+
+  const { error } = await supabase
+    .from("legal_resources")
+    .delete()
+    .eq("id", resourceId);
+
+  if (error) throw new Error(error.message);
+
+  await logAdminAudit({
+    adminId: user.id,
+    action: "delete_legal_resource",
+    entityType: "legal_resources",
+    entityId: resourceId,
+  });
+
+  revalidatePath("/admin/resources");
+  revalidatePath("/citizen/resources");
+  revalidatePath("/resources");
+  return { success: true };
+}
+
+/**
+ * Admin action to respond to a Citizen or Lawyer support ticket.
+ */
+export async function respondSupportTicketAction(params: {
+  ticketId: string;
+  status: "open" | "in_progress" | "resolved" | "closed";
+  adminResponse: string;
+}) {
+  const { user } = await assertAdmin();
+  const supabase = createAdminClient() ?? (await createClient());
+  if (!supabase) throw new Error("Database unavailable.");
+
+  const { data: ticket, error: fetchErr } = await supabase
+    .from("support_tickets")
+    .select("*")
+    .eq("id", params.ticketId)
+    .single();
+
+  if (fetchErr || !ticket) throw new Error("Support ticket not found.");
+
+  const { error } = await supabase
+    .from("support_tickets")
+    .update({
+      status: params.status,
+      admin_response: params.adminResponse.trim(),
+      responded_by: user.id,
+      responded_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", params.ticketId);
+
+  if (error) throw new Error(error.message);
+
+  await logAdminAudit({
+    adminId: user.id,
+    action: "respond_support_ticket",
+    entityType: "support_tickets",
+    entityId: params.ticketId,
+    newValues: { status: params.status, admin_response: params.adminResponse },
+  });
+
+  await sendNotification(
+    ticket.user_id,
+    "support_ticket_update",
+    `Support Ticket Updated: ${ticket.subject}`,
+    `LegalEase Support responded to your ticket (${params.status.replace("_", " ")}): ${params.adminResponse}`,
+    { ticket_id: params.ticketId, status: params.status }
+  );
+
+  revalidatePath("/admin/support");
+  revalidatePath("/citizen/support");
+  revalidatePath("/lawyer/support");
+  return { success: true };
+}
+
+/**
+ * Admin action to seed realistic demo test users (citizens, advocates, staff).
+ * All test users use the default testing password: Password123!
+ */
+export async function seedDemoUsersAction(): Promise<{
+  success: boolean;
+  message: string;
+  createdCount: number;
+}> {
+  const { user: currentAdmin } = await assertAdmin();
+  const adminClient = createAdminClient();
+
+  const demoUsers = [
+    {
+      email: "citizen.ali@legalease.pk",
+      password: "Password123!",
+      role: "citizen" as const,
+      fullName: "Ali Raza Khan",
+      phone: "+92 300 1234567",
+      city: "Karachi",
+      area: "Clifton Block 5",
+      language: "Urdu",
+    },
+    {
+      email: "citizen.fatima@legalease.pk",
+      password: "Password123!",
+      role: "citizen" as const,
+      fullName: "Fatima Noor",
+      phone: "+92 321 9876543",
+      city: "Lahore",
+      area: "Gulberg III",
+      language: "English",
+    },
+    {
+      email: "citizen.bilal@legalease.pk",
+      password: "Password123!",
+      role: "citizen" as const,
+      fullName: "Bilal Ahmed",
+      phone: "+92 333 4567890",
+      city: "Islamabad",
+      area: "Sector F-7/2",
+      language: "Urdu",
+    },
+    {
+      email: "staff.support@legalease.pk",
+      password: "Password123!",
+      role: "admin" as const,
+      fullName: "LegalEase Operations Desk",
+      phone: "+92 345 1122334",
+      city: "Islamabad",
+      area: "Blue Area",
+      language: "English",
+    },
+  ];
+
+  let createdCount = 0;
+
+  if (adminClient) {
+    for (const demo of demoUsers) {
+      try {
+        // Check if user already exists
+        const { data: existingUser } = await adminClient
+          .from("profiles")
+          .select("id")
+          .eq("email", demo.email)
+          .maybeSingle();
+
+        if (existingUser) continue;
+
+        const { data: authData, error: authErr } =
+          await adminClient.auth.admin.createUser({
+            email: demo.email,
+            password: demo.password,
+            email_confirm: true,
+            user_metadata: {
+              full_name: demo.fullName,
+              role: demo.role,
+            },
+          });
+
+        if (authErr || !authData.user) continue;
+
+        await adminClient.from("profiles").upsert({
+          id: authData.user.id,
+          role: demo.role,
+          full_name: demo.fullName,
+          email: demo.email,
+          phone: demo.phone,
+          city: demo.city,
+          area: demo.area,
+          preferred_language: demo.language,
+          is_active: true,
+        });
+
+        createdCount++;
+      } catch (e) {
+        console.error("Failed to seed demo user:", demo.email, e);
+      }
+    }
+  }
+
+  await logAdminAudit({
+    adminId: currentAdmin.id,
+    action: "seed_demo_users",
+    entityType: "profiles",
+    newValues: { createdCount, defaultPassword: "Password123!" },
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/users");
+  return {
+    success: true,
+    message:
+      createdCount > 0
+        ? `Successfully created ${createdCount} demo test users! Default password for all demo accounts is Password123!`
+        : "Demo users already loaded and up to date.",
+    createdCount,
+  };
+}

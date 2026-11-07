@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "source": "FBR",
+    "effective_date": "06 Nov 2026",
+    "direct_url": "https://download.fbr.gov.pk/IT/ATL_IT.xlsx",
+    "filename": "ATL_IT.xlsx",
+    "stored_path": "C:\\Users\\HP\\Desktop\\law_extractor\\data\\atl\\2026-11-06\\ATL_IT.xlsx",
+    "file_format": "xlsx",
+    "file_size": 168363900,
+    "sha256": "2c04bd6322770ece7a93c7017b567150dde8e6be89b453b21180c6e0c18e8273",
+    "downloaded_at": "2026-11-06T21:24:59.527129Z",
+    "status": "downloaded",
+    "error_message": null
+  }
+]

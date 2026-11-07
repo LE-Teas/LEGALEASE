@@ -1,9 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type {
-  Appointment,
   LawyerProfileRecord,
-  LawyerVerification,
-  Review,
 } from "@/lib/types/legal";
 import type { Profile } from "@/lib/auth/types";
 
@@ -57,7 +54,7 @@ export async function getOrCreateLawyerProfile(
 
   if (existing) return existing;
 
-  // Insert default row
+  // Insert default row — unverified lawyers default to is_published: false until admin verification
   const { data: inserted, error } = await supabase
     .from("lawyer_profiles")
     .insert({
@@ -65,7 +62,7 @@ export async function getOrCreateLawyerProfile(
       professional_title: "Advocate High Court",
       city: "Karachi",
       verification_status: "not_submitted",
-      is_published: true,
+      is_published: false,
       consultation_fee: 3000,
       consultation_duration: 30,
     })

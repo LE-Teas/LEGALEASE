@@ -57,6 +57,7 @@ export type LegalSource = z.infer<typeof legalSourceSchema>;
 export const chatRequestSchema = z.object({
   message: z.string().min(3, "Your question is too short.").max(2000, "Your question is too long."),
   conversation_id: z.uuid().optional(),
+  file_id: z.uuid().optional().nullable(),
 });
 
 export type ChatRequest = z.infer<typeof chatRequestSchema>;

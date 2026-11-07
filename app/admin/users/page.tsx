@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { UserStatusDialog } from "@/components/admin/user-status-dialog";
+import { LoadDemoUsersButton } from "@/components/admin/load-demo-users-button";
 
 export const metadata: Metadata = {
   title: "Platform Users | LegalEase Admin",
@@ -136,8 +137,9 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
           </p>
         </div>
 
-        {/* Global Summary */}
-        <div className="flex items-center gap-2 text-xs">
+        {/* Actions & Global Summary */}
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <LoadDemoUsersButton />
           <span className="rounded-lg bg-slate-100 px-3 py-1 font-semibold text-slate-700">
             {roleCounts.all} Total Accounts
           </span>

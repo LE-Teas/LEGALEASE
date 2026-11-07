@@ -2,7 +2,7 @@
  * LegalEase — FYP 1 System & Invariants Verification Test Suite
  * Validates FYP 1 requirements:
  * - Webhook HMAC SHA-256 signature verification
- * - CNIC zero-knowledge hashing and safety assertions (never sent to OpenRouter)
+ * - CNIC zero-knowledge hashing and safety assertions (never sent to external LLMs)
  * - Lawyer ranking algorithm weights (50/20/15/10/5)
  * - Role-based route authorization & privilege boundaries
  */

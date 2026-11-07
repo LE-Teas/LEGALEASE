@@ -3,20 +3,20 @@
 import { useState } from "react";
 import { getErrorMessage } from "@/lib/errors";
 import {
-  CalendarClock,
   Clock,
   User,
   Scale,
   Video,
   Phone,
   Building2,
-  Wallet,
   AlertTriangle,
   XCircle,
   ExternalLink,
   CheckCircle2,
   DollarSign,
   Loader2,
+  Star,
+  Activity,
 } from "lucide-react";
 import {
   Dialog,
@@ -31,7 +31,10 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { adminCancelAppointmentAction, adminSettleAppointmentAction } from "@/app/actions/admin";
+import {
+  adminCancelAppointmentAction,
+  adminSettleAppointmentAction,
+} from "@/app/actions/admin";
 import { formatRate } from "@/lib/data/lawyers";
 
 interface AppointmentDetailsRecord {
@@ -56,6 +59,9 @@ interface AppointmentDetailsRecord {
   completed_at?: string | null;
   completed_by?: string | null;
   early_completion_reason?: string | null;
+  completed_early?: boolean | null;
+  rating_submitted?: boolean | null;
+  stripe_session_id?: string | null;
   cancelled_by?: string | null;
   cancellation_reason?: string | null;
   citizen?: {
@@ -68,6 +74,13 @@ interface AppointmentDetailsRecord {
     email: string | null;
     city?: string | null;
   } | null;
+  session_info?: {
+    session_started_at?: string | null;
+    session_ended_at?: string | null;
+    actual_duration_seconds?: number | null;
+    status?: string | null;
+  } | null;
+  join_events_count?: number;
 }
 
 export function AppointmentManagementDialog({
@@ -108,7 +121,9 @@ export function AppointmentManagementDialog({
     setError(null);
     try {
       const res = await adminSettleAppointmentAction(appointment.id);
-      setSuccessMsg(`Advocate payout transferred successfully (Ref: ${res.payoutRef}).`);
+      setSuccessMsg(
+        `Advocate payout transferred successfully (Ref: ${res.payoutRef}).`
+      );
       setTimeout(() => {
         setOpen(false);
       }, 1500);
@@ -124,7 +139,11 @@ export function AppointmentManagementDialog({
       case "confirmed":
         return <Badge className="bg-[#0CA275] text-white text-[10px]">Confirmed</Badge>;
       case "pending":
-        return <Badge className="bg-amber-500 text-white text-[10px]">Pending Approval</Badge>;
+        return (
+          <Badge className="bg-amber-500 text-white text-[10px]">
+            Pending Approval
+          </Badge>
+        );
       case "completed":
         return <Badge className="bg-blue-600 text-white text-[10px]">Completed</Badge>;
       case "cancelled":
@@ -132,7 +151,11 @@ export function AppointmentManagementDialog({
       case "rejected":
         return <Badge className="bg-rose-600 text-white text-[10px]">Rejected</Badge>;
       default:
-        return <Badge variant="outline" className="text-[10px] capitalize">{s}</Badge>;
+        return (
+          <Badge variant="outline" className="text-[10px] capitalize">
+            {s}
+          </Badge>
+        );
     }
   };
 
@@ -158,8 +181,8 @@ export function AppointmentManagementDialog({
       </DialogTrigger>
       <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               {getStatusBadge(appointment.status)}
               <Badge
                 variant="outline"
@@ -167,8 +190,8 @@ export function AppointmentManagementDialog({
                   appointment.payment_status === "paid"
                     ? "bg-[#ECFDF5] text-[#0CA275] border-[#0CA275]/30"
                     : appointment.payment_status === "waived"
-                    ? "bg-blue-50 text-blue-700 border-blue-200"
-                    : "bg-amber-50 text-amber-800 border-amber-200"
+                      ? "bg-blue-50 text-blue-700 border-blue-200"
+                      : "bg-amber-50 text-amber-800 border-amber-200"
                 }`}
               >
                 Payment: {appointment.payment_status || "Unpaid"}
@@ -176,6 +199,19 @@ export function AppointmentManagementDialog({
               {appointment.settlement_status && (
                 <Badge variant="outline" className="text-[10px] uppercase font-mono">
                   Settlement: {appointment.settlement_status}
+                </Badge>
+              )}
+              {appointment.status === "completed" && (
+                <Badge
+                  variant="outline"
+                  className={
+                    appointment.rating_submitted
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]"
+                      : "bg-amber-50 text-amber-700 border-amber-200 text-[10px]"
+                  }
+                >
+                  <Star className="size-2.5 mr-1" />
+                  {appointment.rating_submitted ? "Rated" : "Rating Pending"}
                 </Badge>
               )}
             </div>
@@ -189,7 +225,8 @@ export function AppointmentManagementDialog({
           </DialogTitle>
           <DialogDescription className="text-xs text-slate-500 flex items-center gap-2">
             <Clock className="size-3 text-slate-400" />
-            {appointment.appointment_date} from {appointment.start_time} to {appointment.end_time} ({appointment.duration_minutes || 60}m duration)
+            {appointment.appointment_date} from {appointment.start_time} to{" "}
+            {appointment.end_time} ({appointment.duration_minutes || 60}m duration)
           </DialogDescription>
         </DialogHeader>
 
@@ -213,53 +250,108 @@ export function AppointmentManagementDialog({
               <span className="text-slate-400 text-[11px] flex items-center gap-1">
                 <User className="size-3" /> Citizen
               </span>
-              <p className="font-semibold text-slate-800 mt-0.5">{appointment.citizen?.full_name}</p>
-              <p className="text-[11px] text-slate-500">{appointment.citizen?.email}</p>
+              <p className="font-semibold text-slate-800 mt-0.5">
+                {appointment.citizen?.full_name}
+              </p>
+              <p className="text-[11px] text-slate-500">
+                {appointment.citizen?.email}
+              </p>
               {appointment.citizen?.phone && (
-                <p className="text-[10px] text-slate-400">{appointment.citizen?.phone}</p>
+                <p className="text-[10px] text-slate-400">
+                  {appointment.citizen?.phone}
+                </p>
               )}
             </div>
             <div>
               <span className="text-slate-400 text-[11px] flex items-center gap-1">
                 <Scale className="size-3" /> Advocate
               </span>
-              <p className="font-semibold text-slate-800 mt-0.5">{appointment.lawyer?.full_name}</p>
+              <p className="font-semibold text-slate-800 mt-0.5">
+                {appointment.lawyer?.full_name}
+              </p>
               <p className="text-[11px] text-slate-500">{appointment.lawyer?.email}</p>
-              <p className="text-[10px] text-slate-400">{appointment.lawyer?.city || "Pakistan"}</p>
+              <p className="text-[10px] text-slate-400">
+                {appointment.lawyer?.city || "Pakistan"}
+              </p>
             </div>
           </div>
 
           {/* Description & Consultation Mode */}
           <div className="space-y-2 rounded-lg border border-slate-200 p-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <span className="text-slate-500 font-medium">Consultation Mode & Duration:</span>
+              <span className="text-slate-500 font-medium">
+                Consultation Mode & Duration:
+              </span>
               <span className="flex items-center gap-1.5 font-semibold capitalize text-slate-800">
                 {getModeIcon(appointment.consultation_type)}
-                {appointment.consultation_type.replace("_", " ")} ({appointment.duration_minutes || 60} minutes)
+                {appointment.consultation_type.replace("_", " ")} (
+                {appointment.duration_minutes || 60} minutes)
               </span>
             </div>
 
-            {appointment.consultation_type === "video" && appointment.status === "confirmed" && (
-              <div className="flex items-center justify-between bg-blue-50/60 p-2 rounded text-blue-900 border border-blue-200">
-                <span className="flex items-center gap-1 font-medium text-[11px]">
-                  <Video className="size-3.5 text-blue-600" />
-                  Jitsi Meet Consultation Room Active ({appointment.duration_minutes || 60}m limit)
-                </span>
-                <a
-                  href={`/citizen/video/${appointment.id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:underline"
-                >
-                  Inspect Room <ExternalLink className="size-3" />
-                </a>
+            {appointment.consultation_type === "video" &&
+              appointment.status === "confirmed" && (
+                <div className="flex items-center justify-between bg-blue-50/60 p-2 rounded text-blue-900 border border-blue-200">
+                  <span className="flex items-center gap-1 font-medium text-[11px]">
+                    <Video className="size-3.5 text-blue-600" />
+                    Jitsi Meet Consultation Room Active (
+                    {appointment.duration_minutes || 60}m limit)
+                  </span>
+                  <a
+                    href={`/citizen/video/${appointment.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:underline"
+                  >
+                    Inspect Room <ExternalLink className="size-3" />
+                  </a>
+                </div>
+              )}
+
+            {/* Session Telemetry */}
+            {(appointment.session_info || (appointment.join_events_count ?? 0) > 0) && (
+              <div className="rounded bg-slate-50 border border-slate-200 p-2.5 space-y-1 text-[11px]">
+                <div className="font-semibold text-slate-800 flex items-center gap-1">
+                  <Activity className="size-3.5 text-[#0CA275]" />
+                  Video Session Telemetry & Presence Audit
+                </div>
+                {appointment.session_info?.session_started_at && (
+                  <p className="text-slate-600">
+                    Session Started:{" "}
+                    {new Date(
+                      appointment.session_info.session_started_at
+                    ).toLocaleString()}
+                  </p>
+                )}
+                {appointment.session_info?.session_ended_at && (
+                  <p className="text-slate-600">
+                    Session Ended:{" "}
+                    {new Date(
+                      appointment.session_info.session_ended_at
+                    ).toLocaleString()}
+                  </p>
+                )}
+                <p className="text-slate-600">
+                  Actual Elapsed Duration:{" "}
+                  <strong>
+                    {Math.round(
+                      (appointment.session_info?.actual_duration_seconds || 0) / 60
+                    )}{" "}
+                    mins
+                  </strong>{" "}
+                  • Presence Join/Leave Events:{" "}
+                  <strong>{appointment.join_events_count || 0}</strong>
+                </p>
               </div>
             )}
 
             <div>
-              <span className="text-slate-400 text-[11px] block">Citizen Inquiry Description:</span>
+              <span className="text-slate-400 text-[11px] block">
+                Citizen Inquiry Description:
+              </span>
               <p className="text-slate-700 mt-1 leading-relaxed">
-                {appointment.description || "No additional description provided at booking."}
+                {appointment.description ||
+                  "No additional description provided at booking."}
               </p>
             </div>
           </div>
@@ -272,12 +364,17 @@ export function AppointmentManagementDialog({
                 Consultation Completion Record:
               </span>
               <p className="text-[11px] text-slate-600">
-                Completed at {new Date(appointment.completed_at).toLocaleString("en-PK")} by{" "}
-                <strong className="capitalize">{appointment.completed_by || "lawyer"}</strong>.
+                Completed at{" "}
+                {new Date(appointment.completed_at).toLocaleString("en-PK")} by{" "}
+                <strong className="capitalize">
+                  {appointment.completed_by || "lawyer"}
+                </strong>
+                .
               </p>
               {appointment.early_completion_reason && (
                 <p className="text-[11px] text-slate-700 bg-white p-2 rounded border border-emerald-100 mt-1">
-                  <strong>Session Note / Reason:</strong> {appointment.early_completion_reason}
+                  <strong>Early / Session Completion Note:</strong>{" "}
+                  {appointment.early_completion_reason}
                 </p>
               )}
             </div>
@@ -290,130 +387,155 @@ export function AppointmentManagementDialog({
             </span>
             {isPhysical ? (
               <div className="rounded bg-blue-50/50 border border-blue-200 p-2 text-blue-900 text-xs font-medium">
-                Physical consultation booking is 100% free. No online consultation fee or LegalEase platform commission applies.
+                Physical consultation booking is 100% free. No online consultation fee
+                or LegalEase platform commission applies.
               </div>
             ) : (
               <>
                 <div className="flex justify-between text-slate-600">
                   <span>Agreed Gross Consultation Fee</span>
-                  <span className="font-medium text-slate-800">{formatRate(appointment.consultation_fee)}</span>
+                  <span className="font-medium text-slate-800">
+                    {formatRate(appointment.consultation_fee)}
+                  </span>
                 </div>
                 <div className="flex justify-between text-slate-600">
                   <span>Platform Commission (10%)</span>
-                  <span className="font-medium text-[#0CA275]">{formatRate(appointment.platform_fee ?? 0)}</span>
+                  <span className="font-medium text-[#0CA275]">
+                    {formatRate(appointment.platform_fee ?? 0)}
+                  </span>
                 </div>
                 {(appointment.tax_amount ?? 0) > 0 && (
                   <div className="flex justify-between text-slate-600">
                     <span>Tax Amount</span>
-                    <span className="font-medium text-slate-800">{formatRate(appointment.tax_amount ?? 0)}</span>
+                    <span className="font-medium text-slate-800">
+                      {formatRate(appointment.tax_amount ?? 0)}
+                    </span>
                   </div>
                 )}
                 <div className="flex justify-between border-t border-slate-200 pt-1.5 font-semibold text-slate-900">
                   <span>Total Escrow Paid / Payable</span>
                   <span className="text-[#0A2843] font-bold">
-                    {formatRate(appointment.total_amount || appointment.consultation_fee)}
+                    {formatRate(
+                      appointment.total_amount || appointment.consultation_fee
+                    )}
                   </span>
                 </div>
                 <div className="flex justify-between text-[11px] text-slate-500 pt-0.5">
                   <span>Advocate Net Receivable Payout</span>
                   <span className="font-medium text-slate-700">
-                    {formatRate(appointment.lawyer_receivable || appointment.consultation_fee - (appointment.platform_fee ?? 0))}
+                    {formatRate(
+                      appointment.lawyer_receivable ||
+                        appointment.consultation_fee - (appointment.platform_fee ?? 0)
+                    )}
                   </span>
                 </div>
+                {appointment.stripe_session_id && (
+                  <div className="flex justify-between text-[11px] text-slate-500 pt-0.5">
+                    <span>Stripe Sandbox Session ID</span>
+                    <span className="font-mono text-slate-700">
+                      {appointment.stripe_session_id}
+                    </span>
+                  </div>
+                )}
               </>
             )}
           </div>
 
           {/* Settlement Action Button if eligible */}
-          {appointment.status === "completed" && appointment.settlement_status === "eligible" && !isPhysical && (
-            <div className="rounded-xl border border-emerald-300 bg-emerald-50/60 p-3.5 space-y-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-heading font-bold text-emerald-950 text-xs">
-                    Eligible for Commission Settlement Payout
-                  </h4>
-                  <p className="text-[11px] text-emerald-800">
-                    Advocate Net Share: <strong>{formatRate(appointment.lawyer_receivable ?? 0)}</strong> (Commission retained: {formatRate(appointment.platform_fee ?? 0)})
-                  </p>
+          {appointment.status === "completed" &&
+            appointment.settlement_status === "eligible" &&
+            !isPhysical && (
+              <div className="rounded-xl border border-emerald-300 bg-emerald-50/60 p-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-heading font-bold text-emerald-950 text-xs">
+                      Eligible for Commission Settlement Payout
+                    </h4>
+                    <p className="text-[11px] text-emerald-800">
+                      Advocate Net Share:{" "}
+                      <strong>{formatRate(appointment.lawyer_receivable ?? 0)}</strong>{" "}
+                      (Commission retained: {formatRate(appointment.platform_fee ?? 0)})
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={handleSettlePayout}
+                    disabled={settling}
+                    className="bg-[#0CA275] hover:bg-[#0CA275]/90 text-white text-xs font-semibold h-8"
+                  >
+                    {settling ? (
+                      <>
+                        <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                        Settling…
+                      </>
+                    ) : (
+                      <>
+                        <DollarSign className="mr-1 size-3.5" />
+                        Authorize Transfer
+                      </>
+                    )}
+                  </Button>
                 </div>
-                <Button
-                  size="sm"
-                  onClick={handleSettlePayout}
-                  disabled={settling}
-                  className="bg-[#0CA275] hover:bg-[#0CA275]/90 text-white text-xs font-semibold h-8"
-                >
-                  {settling ? (
-                    <>
-                      <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                      Settling…
-                    </>
-                  ) : (
-                    <>
-                      <DollarSign className="mr-1 size-3.5" />
-                      Authorize Transfer
-                    </>
-                  )}
-                </Button>
               </div>
-            </div>
-          )}
+            )}
 
           {/* Cancellation section */}
-          {appointment.status !== "cancelled" && appointment.status !== "completed" && (
-            <div className="space-y-2 pt-1">
-              {!showCancelConfirm ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowCancelConfirm(true)}
-                  className="w-full text-rose-600 border-rose-200 hover:bg-rose-50 text-xs"
-                >
-                  <XCircle className="size-3.5 mr-1.5" />
-                  Administrative Cancellation
-                </Button>
-              ) : (
-                <div className="rounded-lg border border-rose-200 bg-rose-50/50 p-3 space-y-2">
-                  <div className="flex items-center gap-1.5 text-rose-800 font-semibold">
-                    <AlertTriangle className="size-4 text-rose-600" />
-                    Confirm Consultation Cancellation
+          {appointment.status !== "cancelled" &&
+            appointment.status !== "completed" && (
+              <div className="space-y-2 pt-1">
+                {!showCancelConfirm ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowCancelConfirm(true)}
+                    className="w-full text-rose-600 border-rose-200 hover:bg-rose-50 text-xs"
+                  >
+                    <XCircle className="size-3.5 mr-1.5" />
+                    Administrative Cancellation
+                  </Button>
+                ) : (
+                  <div className="rounded-lg border border-rose-200 bg-rose-50/50 p-3 space-y-2">
+                    <div className="flex items-center gap-1.5 text-rose-800 font-semibold">
+                      <AlertTriangle className="size-4 text-rose-600" />
+                      Confirm Consultation Cancellation
+                    </div>
+                    <Label htmlFor="cancelReason" className="text-[11px] text-slate-700">
+                      Mandatory Cancellation Reason (Sent to both Citizen and Advocate)
+                    </Label>
+                    <Textarea
+                      id="cancelReason"
+                      rows={2}
+                      placeholder="e.g. Cancelled due to advocate schedule emergency or scheduling conflict."
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      className="text-xs bg-white"
+                    />
+                    <div className="flex justify-end gap-2 pt-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowCancelConfirm(false)}
+                        className="text-xs h-7"
+                      >
+                        Dismiss
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        disabled={loading || !cancelReason.trim()}
+                        onClick={handleCancel}
+                        className="text-xs h-7"
+                      >
+                        {loading ? "Cancelling..." : "Confirm Cancellation"}
+                      </Button>
+                    </div>
                   </div>
-                  <Label htmlFor="cancelReason" className="text-[11px] text-slate-700">
-                    Mandatory Cancellation Reason (Sent to both Citizen and Advocate)
-                  </Label>
-                  <Textarea
-                    id="cancelReason"
-                    rows={2}
-                    placeholder="e.g. Cancelled due to advocate schedule emergency or scheduling conflict."
-                    value={cancelReason}
-                    onChange={(e) => setCancelReason(e.target.value)}
-                    className="text-xs bg-white"
-                  />
-                  <div className="flex justify-end gap-2 pt-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowCancelConfirm(false)}
-                      className="text-xs h-7"
-                    >
-                      Dismiss
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      disabled={loading || !cancelReason.trim()}
-                      onClick={handleCancel}
-                      className="text-xs h-7"
-                    >
-                      {loading ? "Cancelling..." : "Confirm Cancellation"}
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
         </div>
 
         <DialogFooter className="border-t pt-3">

@@ -80,11 +80,10 @@ export default async function CitizenLawyerDetailPage({ params, searchParams }: 
 
       {/* Profile Header Card */}
       <Card className="overflow-hidden border-border bg-white shadow-sm">
-        <div className="h-32 bg-gradient-to-r from-navy to-navy-dark" />
-        <CardContent className="relative px-6 pb-6 pt-0">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 -mt-12 sm:-mt-16">
-            <div className="flex items-end gap-4">
-              <Avatar className="size-24 sm:size-28 border-4 border-white shadow-md bg-white">
+        <CardContent className="p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+              <Avatar className="size-20 sm:size-24 border-2 border-slate-200 shadow-sm bg-slate-50 shrink-0">
                 {lawyer.avatar_url && (
                   <AvatarImage src={lawyer.avatar_url} alt={lawyer.full_name} />
                 )}
@@ -92,38 +91,43 @@ export default async function CitizenLawyerDetailPage({ params, searchParams }: 
                   {initials}
                 </AvatarFallback>
               </Avatar>
-              <div className="mb-2">
-                <div className="flex items-center gap-2">
-                  <h2 className="font-heading text-xl sm:text-2xl font-bold text-navy">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="font-heading text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
                     {lawyer.full_name}
-                  </h2>
+                  </h1>
                   {lawyer.verification_status === "verified" && (
-                    <Badge variant="secondary" className="gap-1 bg-teal-soft text-teal text-[11px]">
+                    <Badge variant="secondary" className="gap-1 bg-teal-soft text-teal text-[11px] font-medium border border-teal/20">
                       <BadgeCheck className="size-3.5 text-teal" />
                       Verified Advocate
                     </Badge>
                   )}
                 </div>
-                <p className="text-sm font-medium text-slate-600">
+                <p className="text-sm font-medium text-slate-700 mt-1">
                   {lawyer.professional_title || "Advocate High Court"}
                 </p>
-                <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <MapPin className="size-3.5 text-slate-400" />
                     {lawyer.city} {lawyer.area ? `(${lawyer.area})` : ""}
                   </span>
-                  <span className="flex items-center gap-1 font-medium text-slate-800">
+                  <span className="flex items-center gap-1 font-semibold text-slate-900">
                     <Star className="size-3.5 fill-gold text-gold" />
                     {Number(lawyer.rating || 0).toFixed(1)} ({lawyer.review_count || 0} reviews)
                   </span>
-                  <span>{lawyer.years_of_experience || 1} years active practice</span>
+                  <span className="font-medium text-slate-600">{lawyer.years_of_experience || 1} years active practice</span>
                 </div>
               </div>
             </div>
 
             {/* Primary Action Button */}
-            <div className="sm:mb-2">
-              <BookingDialog lawyer={lawyer} initialOpen={book === "true"} />
+            <div className="w-full sm:w-auto shrink-0">
+              <Button asChild className="w-full sm:w-auto bg-navy text-white hover:bg-navy/90 text-xs shadow-sm font-medium px-4 h-9">
+                <Link href={`/citizen/appointments/book?lawyerId=${lawyer.id}`}>
+                  <Calendar className="mr-1.5 size-4 text-gold" />
+                  Book Consultation
+                </Link>
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -328,7 +332,12 @@ export default async function CitizenLawyerDetailPage({ params, searchParams }: 
               )}
 
               <div className="pt-2">
-                <BookingDialog lawyer={lawyer} initialOpen={book === "true"} />
+                <Button asChild className="w-full bg-navy text-white hover:bg-navy/90 text-xs shadow-sm">
+                  <Link href={`/citizen/appointments/book?lawyerId=${lawyer.id}`}>
+                    <Calendar className="mr-1.5 size-4 text-gold" />
+                    Book Consultation
+                  </Link>
+                </Button>
               </div>
             </CardContent>
           </Card>

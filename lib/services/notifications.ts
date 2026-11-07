@@ -1,5 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import type { NotificationItem } from "@/lib/types/legal";
+import { sendSmtpEmail } from "@/lib/services/email";
 
 export async function getUserNotifications(userId: string): Promise<NotificationItem[]> {
   const supabase = await createClient();
@@ -52,7 +53,7 @@ export async function sendNotification(
   message: string,
   metadata: Record<string, unknown> = {}
 ): Promise<{ success: boolean }> {
-  const supabase = await createClient();
+  const supabase = createAdminClient() ?? (await createClient());
   if (!supabase) return { success: false };
 
   const { error } = await supabase.from("notifications").insert({
@@ -62,6 +63,38 @@ export async function sendNotification(
     message,
     metadata,
   });
+
+  // Also dispatch email notification via SMTP / Outbox Log
+  try {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("email, full_name, notification_preferences")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (profile?.email) {
+      const prefs = (profile.notification_preferences ?? {}) as Record<string, boolean>;
+      const isPayment = type.includes("payment") || type.includes("refund");
+      const isAppointment = type.includes("appointment") || type.includes("consultation");
+      const allowEmail =
+        (isPayment && prefs.email_payments !== false) ||
+        (isAppointment && prefs.email_appointments !== false) ||
+        (!isPayment && !isAppointment);
+
+      if (allowEmail) {
+        await sendSmtpEmail({
+          to: profile.email,
+          subject: `[LegalEase] ${title}`,
+          text: `Assalam-o-Alaikum ${profile.full_name || "User"},\n\n${message}\n\nLog in to your LegalEase dashboard to view details and take action.\n\nRegards,\nLegalEase Pakistan Notification System`,
+          userId,
+          notificationType: type,
+          metadata,
+        });
+      }
+    }
+  } catch {
+    // Non-blocking: in-app notification is already saved
+  }
 
   return { success: !error };
 }

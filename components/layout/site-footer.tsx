@@ -93,7 +93,7 @@ export function SiteFooter() {
             © {new Date().getFullYear()} LegalEase Pakistan. Final Year Project — KIET BSCS. All rights reserved.
           </p>
           <p className="inline-flex items-center gap-1.5">
-            Built with Next.js & Supabase · Powered by OpenRouter
+            Built with Next.js & Supabase · Powered by Google Gemini
           </p>
         </div>
       </div>

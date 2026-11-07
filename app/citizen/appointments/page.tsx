@@ -6,11 +6,12 @@ import {
   Clock,
   Phone,
   Search,
+  Star,
   Video,
 } from "lucide-react";
 import { getAuthState } from "@/lib/auth/profile";
 import { getCitizenAppointments } from "@/lib/services/appointments";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -37,6 +38,7 @@ export default async function CitizenAppointmentsPage() {
   const pending = appointments.filter((a) => a.status === "pending");
   const completed = appointments.filter((a) => a.status === "completed");
   const cancelled = appointments.filter((a) => a.status === "cancelled" || a.status === "rejected");
+  const unratedCompleted = completed.filter((a) => !a.rating_submitted);
 
   const renderAppointmentCard = (appt: Appointment) => {
     const statusColors: Record<string, string> = {
@@ -52,10 +54,23 @@ export default async function CitizenAppointmentsPage() {
         <CardContent className="p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-2">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className={`capitalize font-semibold text-xs ${statusColors[appt.status] || ""}`}>
                   {appt.status}
                 </Badge>
+                {appt.status === "completed" && (
+                  appt.rating_submitted ? (
+                    <Badge className="bg-emerald-600 text-white text-[10px]">
+                      <Star className="mr-1 size-3 fill-white" />
+                      Rated
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-amber-500 text-white text-[10px]">
+                      <Star className="mr-1 size-3" />
+                      Pending Mandatory Rating
+                    </Badge>
+                  )
+                )}
                 <span className="text-xs text-muted-foreground">• Ref #{appt.id.slice(0, 8)}</span>
               </div>
 
@@ -113,6 +128,14 @@ export default async function CitizenAppointmentsPage() {
                   paymentStatus={appt.payment_status}
                 />
               )}
+              {appt.status === "completed" && !appt.rating_submitted && (
+                <Button asChild size="sm" className="h-8 bg-amber-600 hover:bg-amber-700 text-white text-xs">
+                  <Link href={`/citizen/appointments/${appt.id}`}>
+                    <Star className="mr-1.5 size-3.5" />
+                    Rate Advocate
+                  </Link>
+                </Button>
+              )}
               <Button asChild size="sm" variant="outline" className="h-8 text-xs">
                 <Link href={`/citizen/appointments/${appt.id}`}>Details</Link>
               </Button>
@@ -153,13 +176,50 @@ export default async function CitizenAppointmentsPage() {
             View upcoming consultations, pending requests, and consultation history.
           </p>
         </div>
-        <Button asChild className="bg-navy text-white hover:bg-navy/90">
-          <Link href="/citizen/lawyers">
-            <Search className="mr-2 size-4" />
-            Book New Consultation
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" className="text-xs">
+            <Link href="/citizen/lawyers">
+              <Search className="mr-1.5 size-3.5 text-teal" />
+              Browse Advocates
+            </Link>
+          </Button>
+          <Button asChild className="bg-navy text-white hover:bg-navy/90 text-xs shadow-sm">
+            <Link href="/citizen/appointments/book">
+              <CalendarClock className="mr-1.5 size-3.5 text-gold" />
+              Book New Consultation
+            </Link>
+          </Button>
+        </div>
       </div>
+
+      {unratedCompleted.length > 0 && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <p className="font-heading text-sm font-bold text-amber-950">
+                Mandatory Post-Consultation Rating Pending ({unratedCompleted.length})
+              </p>
+              <p className="mt-0.5 text-xs text-amber-900">
+                Please rate your completed session with{" "}
+                <span className="font-semibold">
+                  {unratedCompleted[0].lawyer?.full_name || "Advocate"}
+                </span>{" "}
+                to help verify service quality on LegalEase.
+              </p>
+            </div>
+            <Button
+              asChild
+              size="sm"
+              className="shrink-0 bg-amber-600 text-white hover:bg-amber-700 text-xs"
+            >
+              <Link href={`/citizen/appointments/${unratedCompleted[0].id}`}>
+                <Star className="mr-1.5 size-3.5" />
+                Submit 1–5 Star Rating
+              </Link>
+            </Button>
+          </div>
+        </div>
+      )}
 
       <Tabs defaultValue="upcoming" className="space-y-6">
         <TabsList className="bg-slate-100 p-1 border border-slate-200">

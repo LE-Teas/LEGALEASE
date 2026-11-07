@@ -29,7 +29,7 @@ async function requireAdmin() {
 /**
  * Server action: Citizen lookup of CNIC status.
  * Rate-limited and validated server-side.
- * Never sends the CNIC to OpenRouter or external AI.
+ * Never sends the CNIC to external AI or third parties.
  */
 export async function lookupCnicStatusAction(
   cnic: string

@@ -15,7 +15,7 @@ The platform bridges the gap between citizens navigating complex statutory syste
 1. **AI Legal Assistant (`/ai-assistant`)**: A statutory RAG agent citing Pakistan Penal Code (PPC), CrPC, Family Courts Act 1964, Rent Restriction Ordinances, and consumer protection acts with plain-language explanations and instant verified lawyer recommendations.
 2. **Citizen Portal (`/citizen`)**: Direct lawyer search by city and practice area, real-time consultation booking, encrypted WebRTC/Jitsi video chambers, automated legal notice drafts, and matter progress tracking.
 3. **Lawyer Practice Portal (`/lawyer`)**: Comprehensive practice management featuring Bar Council verification workflows, Chamber profile management, calendar & slot configuration, client consultation workspace, encrypted video appointments, case notes, document vaults, and fee ledgers.
-4. **Administrative Governance Dashboard (`/admin`)**: 15 integrated modules for platform management including Bar Council credential audits, ATL/FBR tax verification, RAG knowledge-base indexing, AI model engine switching (OpenRouter / Gemini / DeepSeek), review moderation, and dispute management.
+4. **Administrative Governance Dashboard (`/admin`)**: 15 integrated modules for platform management including Bar Council credential audits, ATL/FBR tax verification, RAG knowledge-base indexing, AI model engine configuration, review moderation, and dispute management.
 
 ---
 
@@ -68,7 +68,7 @@ The platform strictly adheres to a cohesive, high-contrast, professional design 
 ### 4. Admin Governance Hub (`/admin`)
 - **Lawyer Verification Queue**: Inspect uploaded Bar Council cards, CNIC, and ATL Filer status before granting verified advocate credentials.
 - **RAG Knowledge-Base Management**: Upload statutory enactments, case precedent digests, and gazettes into pgvector embeddings.
-- **AI Model Router**: Dynamically configure OpenRouter API keys, model fallbacks (Gemini 1.5 Flash, DeepSeek V3, Claude 3.5 Sonnet), temperature, and system prompts.
+- **AI Model Router**: Dynamically configure AI API keys, model fallbacks (Gemini 2.5 Flash, Gemini 1.5 Flash, Gemini 1.5 Pro), temperature, and system prompts.
 - **Audit Logs & Dispute Center**: Monitor system events and mediate appointment refund requests or lawyer conduct reports.
 
 ---
@@ -110,7 +110,7 @@ FYP/
 │   └── navigation/                # Header, Footer, Role-specific Sidebars
 ├── lib/                           # Utilities & Service Clients
 │   ├── supabase/                  # Supabase browser & server clients
-│   ├── ai/                        # OpenRouter & prompt construction
+│   ├── ai/                        # Grounded AI & prompt construction
 │   └── utils.ts                   # Class merging & formatters
 ├── public/                        # Static Assets
 │   ├── favicon.svg                # Brand favicon (#0d2b43 / #0fa176)
@@ -144,9 +144,9 @@ Create a `.env.local` file in the root directory:
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 
-# OpenRouter / AI Engine
-OPENROUTER_API_KEY=your_openrouter_api_key
-OPENROUTER_DEFAULT_MODEL=google/gemini-flash-1.5
+# Google Gemini / AI Engine
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-3.5-flash
 
 # Next Public Site URL
 NEXT_PUBLIC_SITE_URL=http://localhost:3000

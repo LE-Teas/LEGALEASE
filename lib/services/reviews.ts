@@ -15,7 +15,6 @@ export async function submitReview(
     return { success: false, error: "Rating must be between 1 and 5 stars." };
   }
 
-  // 1. Verify appointment is completed and belongs to citizen
   const { data: appt, error: apptErr } = await supabase
     .from("appointments")
     .select("*")
@@ -31,10 +30,12 @@ export async function submitReview(
   }
 
   if (appt.status !== "completed") {
-    return { success: false, error: "You can only submit a review after the consultation is completed." };
+    return {
+      success: false,
+      error: "You can only submit a review after the consultation is completed.",
+    };
   }
 
-  // 2. Check if a review already exists for this appointment
   const { data: existingReview } = await supabase
     .from("reviews")
     .select("id")
@@ -42,10 +43,12 @@ export async function submitReview(
     .maybeSingle();
 
   if (existingReview) {
-    return { success: false, error: "You have already submitted a review for this consultation." };
+    return {
+      success: false,
+      error: "You have already submitted a review for this consultation.",
+    };
   }
 
-  // 3. Insert review (mandatory 1-5 rating, optional comment)
   const { data: review, error: insertErr } = await supabase
     .from("reviews")
     .insert({
@@ -62,6 +65,12 @@ export async function submitReview(
     return { success: false, error: insertErr?.message || "Failed to submit review." };
   }
 
+  // Mark rating_submitted on appointment
+  await supabase
+    .from("appointments")
+    .update({ rating_submitted: true, updated_at: new Date().toISOString() })
+    .eq("id", appointmentId);
+
   // Notify lawyer of new review
   await sendNotification(
     appt.lawyer_id,
@@ -72,6 +81,52 @@ export async function submitReview(
   );
 
   return { success: true, review };
+}
+
+export async function respondOrFlagReview(params: {
+  reviewId: string;
+  lawyerId: string;
+  lawyerResponse?: string;
+  isFlagged?: boolean;
+  flagReason?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient();
+  if (!supabase) return { success: false, error: "Database unavailable" };
+
+  const { data: existing } = await supabase
+    .from("reviews")
+    .select("*")
+    .eq("id", params.reviewId)
+    .eq("lawyer_id", params.lawyerId)
+    .maybeSingle();
+
+  if (!existing) {
+    return { success: false, error: "Review not found or unauthorized." };
+  }
+
+  const updates: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (typeof params.lawyerResponse === "string") {
+    updates.lawyer_response = params.lawyerResponse.trim() || null;
+    updates.lawyer_responded_at = params.lawyerResponse.trim()
+      ? new Date().toISOString()
+      : null;
+  }
+
+  if (typeof params.isFlagged === "boolean") {
+    updates.is_flagged = params.isFlagged;
+    updates.flag_reason = params.flagReason?.trim() || null;
+  }
+
+  const { error } = await supabase
+    .from("reviews")
+    .update(updates)
+    .eq("id", params.reviewId);
+
+  if (error) return { success: false, error: error.message };
+  return { success: true };
 }
 
 export async function getLawyerReviews(lawyerId: string): Promise<Review[]> {

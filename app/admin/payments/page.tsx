@@ -3,28 +3,33 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import {
   Wallet,
-  CreditCard,
-  ArrowUpRight,
   TrendingUp,
   Receipt,
   Search,
-  Filter,
-  CheckCircle2,
   Clock,
-  AlertTriangle,
-  RotateCcw,
   ShieldCheck,
   Building,
+  Webhook,
+  Settings,
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatRate } from "@/lib/data/lawyers";
+import { getWebhookEvents } from "@/lib/services/stripe";
+import { PaymentRefundButton } from "@/components/admin/payment-refund-button";
 
 export const metadata: Metadata = {
-  title: "Payments & Platform Fees | LegalEase Admin",
-  description: "Consultation financial records, platform fee reconciliation, and advocate payout summaries.",
+  title: "Payments, Stripe Sandbox Escrow & Webhooks | LegalEase Admin",
+  description:
+    "Consultation financial records, Stripe Sandbox webhook events, platform fee reconciliation, and advocate payout summaries.",
   robots: { index: false },
 };
 
@@ -43,6 +48,8 @@ interface PaymentRow {
   total_amount: number | null;
   lawyer_receivable: number | null;
   payment_status: string;
+  settlement_reference?: string | null;
+  stripe_session_id?: string | null;
   created_at: string;
   citizen?: { full_name: string | null; email: string | null } | null;
   lawyer?: { full_name: string | null; email: string | null; city: string | null } | null;
@@ -61,7 +68,6 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
   let refundedCount = 0;
 
   if (supabase) {
-    // 1. Fetch appointments payment data
     const { data: allAppts } = await supabase
       .from("appointments")
       .select(`
@@ -73,6 +79,8 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
         total_amount,
         lawyer_receivable,
         payment_status,
+        settlement_reference,
+        stripe_session_id,
         created_at,
         citizen:profiles!appointments_citizen_id_fkey(full_name, email),
         lawyer:profiles!appointments_lawyer_id_fkey(full_name, email, city)
@@ -83,14 +91,17 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
       allAppts.forEach((a) => {
         const fee = Number(a.platform_fee) || 0;
         const total = Number(a.total_amount) || Number(a.consultation_fee) || 0;
-        const receivable = Number(a.lawyer_receivable) || (total - fee);
+        const receivable = Number(a.lawyer_receivable) || total - fee;
 
         if (a.payment_status === "paid") {
           totalGross += total;
           totalPlatformFees += fee;
           totalLawyerPayouts += receivable;
           paidCount++;
-        } else if (a.payment_status === "pending" || a.payment_status === "unpaid") {
+        } else if (
+          a.payment_status === "pending" ||
+          a.payment_status === "unpaid"
+        ) {
           pendingCount++;
         } else if (a.payment_status === "refunded") {
           refundedCount++;
@@ -108,7 +119,8 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
           (a) =>
             a.citizen?.full_name?.toLowerCase().includes(q) ||
             a.lawyer?.full_name?.toLowerCase().includes(q) ||
-            a.id.toLowerCase().includes(q)
+            a.id.toLowerCase().includes(q) ||
+            a.stripe_session_id?.toLowerCase().includes(q)
         );
       }
 
@@ -116,6 +128,7 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
     }
   }
 
+  const webhookEvents = await getWebhookEvents(15);
   const activeTab = status || "all";
 
   const getPaymentStatusBadge = (s: string) => {
@@ -124,13 +137,23 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
         return <Badge className="bg-[#0CA275] text-white text-[10px]">Paid</Badge>;
       case "pending":
       case "unpaid":
-        return <Badge className="bg-amber-500 text-white text-[10px]">Pending / Unpaid</Badge>;
+        return (
+          <Badge className="bg-amber-500 text-white text-[10px]">
+            Pending / Unpaid
+          </Badge>
+        );
       case "refunded":
-        return <Badge className="bg-purple-600 text-white text-[10px]">Refunded</Badge>;
+        return (
+          <Badge className="bg-purple-600 text-white text-[10px]">Refunded</Badge>
+        );
       case "failed":
         return <Badge className="bg-rose-600 text-white text-[10px]">Failed</Badge>;
       default:
-        return <Badge variant="outline" className="text-[10px] capitalize">{s}</Badge>;
+        return (
+          <Badge variant="outline" className="text-[10px] capitalize">
+            {s}
+          </Badge>
+        );
     }
   };
 
@@ -141,10 +164,11 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
         <div>
           <h1 className="font-heading text-2xl font-bold text-[#0A2843] flex items-center gap-2">
             <Wallet className="size-6 text-[#0CA275]" />
-            Financial Ledger & Platform Fees
+            Financial Ledger, Stripe Sandbox Escrow & Webhooks
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Server-verified consultation transactions, revenue reconciliation, and advocate disbursement accounting.
+            Stripe Sandbox webhook-verified consultation transactions, revenue
+            reconciliation, and advocate disbursement accounting.
           </p>
         </div>
 
@@ -152,6 +176,12 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
           <Badge className="bg-[#ECFDF5] text-[#0CA275] border-[#0CA275]/30">
             {formatRate(totalPlatformFees)} Net Platform Revenue
           </Badge>
+          <Button asChild variant="outline" size="sm" className="text-xs h-8 gap-1.5">
+            <Link href="/admin/settings">
+              <Settings className="size-3.5 text-[#0CA275]" />
+              Stripe Sandbox Config
+            </Link>
+          </Button>
         </div>
       </div>
 
@@ -160,11 +190,15 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
         <Card className="border-slate-200 bg-white">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs text-slate-500 font-medium">Gross Consultation Volume</p>
+              <p className="text-xs text-slate-500 font-medium">
+                Gross Consultation Volume
+              </p>
               <p className="font-heading text-2xl font-bold text-[#0A2843] mt-0.5">
                 {formatRate(totalGross)}
               </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">{paidCount} settled transactions</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {paidCount} settled transactions
+              </p>
             </div>
             <div className="p-3 rounded-xl bg-slate-100 text-[#0A2843]">
               <Receipt className="size-5" />
@@ -175,11 +209,15 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
         <Card className="border-slate-200 bg-white">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs text-slate-500 font-medium">Platform Service Fees</p>
+              <p className="text-xs text-slate-500 font-medium">
+                Platform Service Fees
+              </p>
               <p className="font-heading text-2xl font-bold text-[#0CA275] mt-0.5">
                 {formatRate(totalPlatformFees)}
               </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Retained platform commission</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Retained platform commission
+              </p>
             </div>
             <div className="p-3 rounded-xl bg-[#ECFDF5] text-[#0CA275]">
               <TrendingUp className="size-5" />
@@ -190,11 +228,15 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
         <Card className="border-slate-200 bg-white">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs text-slate-500 font-medium">Advocate Net Disbursements</p>
+              <p className="text-xs text-slate-500 font-medium">
+                Advocate Net Disbursements
+              </p>
               <p className="font-heading text-2xl font-bold text-slate-800 mt-0.5">
                 {formatRate(totalLawyerPayouts)}
               </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Disbursed to advocates</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Disbursed to advocates
+              </p>
             </div>
             <div className="p-3 rounded-xl bg-blue-50 text-blue-700">
               <Building className="size-5" />
@@ -205,11 +247,15 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
         <Card className="border-slate-200 bg-white">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs text-slate-500 font-medium">Pending Settlements</p>
+              <p className="text-xs text-slate-500 font-medium">
+                Pending Settlements
+              </p>
               <p className="font-heading text-2xl font-bold text-amber-600 mt-0.5">
                 {pendingCount}
               </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Invoices awaiting payment</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Invoices awaiting payment
+              </p>
             </div>
             <div className="p-3 rounded-xl bg-amber-50 text-amber-600">
               <Clock className="size-5" />
@@ -222,7 +268,22 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
       <div className="rounded-lg bg-slate-50 border border-slate-200 p-3.5 text-xs text-slate-700 flex items-start gap-2.5">
         <ShieldCheck className="size-4 text-[#0CA275] shrink-0 mt-0.5" />
         <div>
-          <strong className="font-semibold text-slate-900">Payment Reconciliation Integrity:</strong> Consultation fees are snapshot at booking into immutable agreement records (<code className="font-mono text-[11px] bg-slate-200/60 px-1 py-0.5 rounded">appointment_agreements</code>). Direct bank transfer verification and 1Link / RAAST settlement integration status are displayed below without simulating unverified payment confirmations.
+          <strong className="font-semibold text-slate-900">
+            Stripe Sandbox Webhook & Escrow Integrity:
+          </strong>{" "}
+          Consultation fees are snapshot at booking into immutable agreement records (
+          <code className="font-mono text-[11px] bg-slate-200/60 px-1 py-0.5 rounded">
+            appointment_agreements
+          </code>
+          ) and verified via HMAC-SHA256{" "}
+          <code className="font-mono text-[11px] bg-slate-200/60 px-1 py-0.5 rounded">
+            Stripe-Signature
+          </code>{" "}
+          webhooks at{" "}
+          <code className="font-mono text-[11px] bg-slate-200/60 px-1 py-0.5 rounded">
+            POST /api/webhooks/stripe
+          </code>
+          .
         </div>
       </div>
 
@@ -232,7 +293,9 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
           <Link
             href="/admin/payments?status=all"
             className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-              activeTab === "all" ? "bg-[#0A2843] text-white shadow-xs" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              activeTab === "all"
+                ? "bg-[#0A2843] text-white shadow-xs"
+                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
             }`}
           >
             All Ledger Records
@@ -240,7 +303,9 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
           <Link
             href="/admin/payments?status=paid"
             className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-              activeTab === "paid" ? "bg-[#0CA275] text-white shadow-xs" : "bg-[#ECFDF5] text-[#0CA275] hover:bg-emerald-100"
+              activeTab === "paid"
+                ? "bg-[#0CA275] text-white shadow-xs"
+                : "bg-[#ECFDF5] text-[#0CA275] hover:bg-emerald-100"
             }`}
           >
             Paid ({paidCount})
@@ -248,7 +313,9 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
           <Link
             href="/admin/payments?status=unpaid"
             className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-              activeTab === "unpaid" ? "bg-amber-500 text-white shadow-xs" : "bg-amber-50 text-amber-800 hover:bg-amber-100"
+              activeTab === "unpaid"
+                ? "bg-amber-500 text-white shadow-xs"
+                : "bg-amber-50 text-amber-800 hover:bg-amber-100"
             }`}
           >
             Unpaid / Pending ({pendingCount})
@@ -256,7 +323,9 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
           <Link
             href="/admin/payments?status=refunded"
             className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-              activeTab === "refunded" ? "bg-purple-600 text-white shadow-xs" : "bg-purple-50 text-purple-800 hover:bg-purple-100"
+              activeTab === "refunded"
+                ? "bg-purple-600 text-white shadow-xs"
+                : "bg-purple-50 text-purple-800 hover:bg-purple-100"
             }`}
           >
             Refunded ({refundedCount})
@@ -270,7 +339,7 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
             <Input
               name="search"
               defaultValue={search || ""}
-              placeholder="Search by citizen, lawyer, ID..."
+              placeholder="Search by citizen, lawyer, Session ID..."
               className="pl-8 text-xs h-9 bg-white"
             />
           </div>
@@ -287,14 +356,14 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
             <table className="w-full text-left text-xs">
               <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold uppercase text-slate-500">
                 <tr>
-                  <th className="px-4 py-3">Transaction Reference</th>
+                  <th className="px-4 py-3">Stripe Session / Tx Ref</th>
                   <th className="px-4 py-3">Citizen Payer</th>
                   <th className="px-4 py-3">Beneficiary Advocate</th>
                   <th className="px-4 py-3">Total Amount</th>
                   <th className="px-4 py-3">Platform Cut</th>
                   <th className="px-4 py-3">Advocate Net</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -306,21 +375,37 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
                   </tr>
                 ) : (
                   payments.map((p) => {
-                    const gross = Number(p.total_amount) || Number(p.consultation_fee) || 0;
+                    const gross =
+                      Number(p.total_amount) || Number(p.consultation_fee) || 0;
                     const fee = Number(p.platform_fee) || 0;
-                    const net = Number(p.lawyer_receivable) || (gross - fee);
+                    const net = Number(p.lawyer_receivable) || gross - fee;
                     return (
                       <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="px-4 py-3 font-mono font-medium text-slate-800">
-                          {p.id.slice(0, 10)}...
+                        <td className="px-4 py-3">
+                          <div className="font-mono font-semibold text-slate-800">
+                            {p.stripe_session_id
+                              ? p.stripe_session_id
+                              : p.settlement_reference || p.id.slice(0, 10)}
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            {p.appointment_date}
+                          </div>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="font-semibold text-slate-900">{p.citizen?.full_name || "Citizen"}</div>
-                          <div className="text-[11px] text-slate-500">{p.citizen?.email}</div>
+                          <div className="font-semibold text-slate-900">
+                            {p.citizen?.full_name || "Citizen"}
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            {p.citizen?.email}
+                          </div>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="font-semibold text-slate-900">{p.lawyer?.full_name || "Advocate"}</div>
-                          <div className="text-[11px] text-slate-500">{p.lawyer?.city || "Pakistan"}</div>
+                          <div className="font-semibold text-slate-900">
+                            {p.lawyer?.full_name || "Advocate"}
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            {p.lawyer?.city || "Pakistan"}
+                          </div>
                         </td>
                         <td className="px-4 py-3 font-bold text-[#0A2843]">
                           {formatRate(gross)}
@@ -331,13 +416,87 @@ export default async function AdminPaymentsPage({ searchParams }: PageProps) {
                         <td className="px-4 py-3 font-medium text-slate-700">
                           {formatRate(net)}
                         </td>
-                        <td className="px-4 py-3">{getPaymentStatusBadge(p.payment_status)}</td>
-                        <td className="px-4 py-3 text-slate-500">
-                          {p.appointment_date || new Date(p.created_at).toLocaleDateString()}
+                        <td className="px-4 py-3">
+                          {getPaymentStatusBadge(p.payment_status)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {p.payment_status === "paid" ? (
+                            <PaymentRefundButton appointmentId={p.id} />
+                          ) : (
+                            <span className="text-[11px] text-slate-400">—</span>
+                          )}
                         </td>
                       </tr>
                     );
                   })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Stripe Sandbox Webhook Events Table */}
+      <Card className="border-slate-200 bg-white shadow-xs">
+        <CardHeader className="pb-3">
+          <CardTitle className="font-heading text-base text-[#0A2843] flex items-center gap-2">
+            <Webhook className="size-4 text-[#0CA275]" />
+            Verified Stripe Sandbox Webhook Events (Idempotency Audit)
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Cryptographically verified webhook payloads processed by{" "}
+            <code className="font-mono">/api/webhooks/stripe</code>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold uppercase text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">Webhook Event ID</th>
+                  <th className="px-4 py-3">Event Type</th>
+                  <th className="px-4 py-3">Appointment ID</th>
+                  <th className="px-4 py-3">Processed</th>
+                  <th className="px-4 py-3">Received At</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {webhookEvents.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-xs text-slate-500">
+                      No Stripe Sandbox webhook events recorded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  webhookEvents.map((ev) => (
+                    <tr key={ev.id} className="hover:bg-slate-50/70">
+                      <td className="px-4 py-3 font-mono text-[11px] text-slate-700">
+                        {ev.event_id}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge variant="outline" className="font-mono text-[10px]">
+                          {ev.event_name}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-[11px] text-slate-500">
+                        {ev.appointment_id ? ev.appointment_id.slice(0, 12) : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge
+                          className={
+                            ev.processed
+                              ? "bg-[#ECFDF5] text-[#0CA275] border-[#0CA275]/30 text-[10px]"
+                              : "bg-amber-50 text-amber-800 border-amber-200 text-[10px]"
+                          }
+                        >
+                          {ev.processed ? "Processed" : "Pending"}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-slate-500">
+                        {new Date(ev.created_at).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
