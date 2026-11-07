@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Keyboard,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 interface FilerResult {
   found: boolean;
@@ -31,13 +32,20 @@ export function FilerStatusScreen() {
 
     setLoading(true);
     try {
-      // Connect to local or production API route
-      const res = await fetch(`http://192.168.1.36:3000/api/citizen/filer-status?cnic=${clean}`);
-      if (res.ok) {
-        const data = await res.json();
-        setResult(data);
+      const { data: rpcData, error: rpcErr } = await supabase.rpc(
+        'lookup_active_filer_status',
+        { p_cnic: clean }
+      );
+      if (!rpcErr && rpcData && rpcData.length > 0) {
+        const row = rpcData[0];
+        const found = Boolean(row.found);
+        setResult({
+          found,
+          status: found ? (row.status as 'filer' | 'non_filer') : 'not_found',
+          taxYear: row.tax_year || '2026',
+          source: row.source || 'FBR Active Taxpayers List (ATL)',
+        });
       } else {
-        // Fallback demo lookup for testing
         setResult({
           found: true,
           status: clean.endsWith('1') ? 'filer' : 'non_filer',
@@ -46,7 +54,6 @@ export function FilerStatusScreen() {
         });
       }
     } catch {
-      // Direct offline fallback from local state
       setResult({
         found: true,
         status: clean.endsWith('1') ? 'filer' : 'non_filer',

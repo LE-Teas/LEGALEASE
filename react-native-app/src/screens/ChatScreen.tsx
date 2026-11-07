@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { API_BASE_URL } from '../lib/supabase';
 
 interface Message {
   id: string;
@@ -43,7 +44,7 @@ export function ChatScreen() {
     setLoading(true);
 
     try {
-      const response = await fetch('http://192.168.1.36:3000/api/legal/chat', {
+      const response = await fetch(`${API_BASE_URL}/api/legal/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
