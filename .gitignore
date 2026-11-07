@@ -52,10 +52,10 @@ Knowledgebase/atl/
 *.xlsx
 *.csv
 
-# mobile app build artifacts & dependencies
-mobile-app/node_modules/
-mobile-app/android/.gradle/
-mobile-app/android/build/
-mobile-app/android/app/build/
-mobile-app/ios/DerivedData/
+# react native expo mobile app
+react-native-app/node_modules/
+react-native-app/.expo/
+react-native-app/android/
+react-native-app/ios/
+
 

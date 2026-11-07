@@ -79,3 +79,4 @@ To generate standalone production binaries for Google Play Store and Apple App S
    ```bash
    eas build -p ios --profile production
    ```
+
