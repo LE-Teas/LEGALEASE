@@ -1,0 +1,6 @@
+node_modules
+.next
+react-native-app
+Knowledgebase
+supabase/.temp
+.git
