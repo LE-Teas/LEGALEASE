@@ -56,19 +56,58 @@ export const metadata: Metadata = {
 
 const EXTENSION_CLEANUP_SCRIPT = `(function(){
   try {
-    // 1. Prevent crashing if injected extension content scripts throw unhandled errors
     if (typeof window !== "undefined") {
-      window.addEventListener("error", function(evt) {
-        if (
-          evt.filename &&
-          (evt.filename.indexOf("chrome-extension://") === 0 ||
-           evt.filename.indexOf("moz-extension://") === 0 ||
-           evt.filename.indexOf("eppiocemhmnlbhjplcgkofciiegomcon") !== -1)
-        ) {
+      var isExtensionError = function(msg, source, stack) {
+        var combined = String(msg || "") + " " + String(source || "") + " " + String(stack || "");
+        return (
+          combined.indexOf("chrome-extension://") !== -1 ||
+          combined.indexOf("moz-extension://") !== -1 ||
+          combined.indexOf("safari-extension://") !== -1 ||
+          combined.indexOf("eppiocemhmnlbhjplcgkofciiegomcon") !== -1 ||
+          combined.indexOf("M_ID") !== -1
+        );
+      };
+
+      var handleErr = function(evt) {
+        var msg = evt && (evt.message || (evt.reason && evt.reason.message) || evt.reason);
+        var src = evt && evt.filename;
+        var stack = evt && ((evt.error && evt.error.stack) || (evt.reason && evt.reason.stack));
+        if (isExtensionError(msg, src, stack)) {
           evt.preventDefault();
           evt.stopImmediatePropagation();
+          return true;
         }
-      }, true);
+        return false;
+      };
+
+      window.addEventListener("error", handleErr, true);
+      window.addEventListener("unhandledrejection", handleErr, true);
+
+      // Wrap window.addEventListener so Next.js Dev Overlay listeners also ignore extension errors
+      var origAddEventListener = window.addEventListener.bind(window);
+      window.addEventListener = function(type, listener, options) {
+        if ((type === "error" || type === "unhandledrejection") && typeof listener === "function") {
+          var wrapped = function(evt) {
+            if (handleErr(evt)) return;
+            return listener.apply(this, arguments);
+          };
+          return origAddEventListener(type, wrapped, options);
+        }
+        return origAddEventListener(type, listener, options);
+      };
+
+      var origConsoleError = console.error.bind(console);
+      console.error = function() {
+        for (var i = 0; i < arguments.length; i++) {
+          var arg = arguments[i];
+          var stack = arg && arg.stack;
+          var msg = arg && (arg.message || String(arg));
+          if (isExtensionError(msg, "", stack)) {
+            return;
+          }
+        }
+        return origConsoleError.apply(console, arguments);
+      };
     }
 
     // 2. Safe attribute cleaner for DOM nodes
