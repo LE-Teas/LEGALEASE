@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, Check, CheckCheck, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { NotificationItem } from "@/lib/types/legal";
+import { createClient } from "@/lib/supabase/client";
 
 interface NotificationsViewProps {
   initialNotifications: NotificationItem[];
@@ -20,6 +21,43 @@ export function NotificationsView({ initialNotifications }: NotificationsViewPro
 
   const unreadCount = notifications.filter((n) => !n.read_at).length;
   const filtered = filter === "unread" ? notifications.filter((n) => !n.read_at) : notifications;
+
+  useEffect(() => {
+    const supabase = createClient();
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel("realtime:notifications_view")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+        },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            const newItem = payload.new as NotificationItem;
+            setNotifications((prev) => [newItem, ...prev.filter((item) => item.id !== newItem.id)]);
+          } else if (payload.eventType === "UPDATE") {
+            const updatedItem = payload.new as NotificationItem;
+            setNotifications((prev) =>
+              prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
+            );
+          } else if (payload.eventType === "DELETE") {
+            const deletedId = (payload.old as { id?: string })?.id;
+            if (deletedId) {
+              setNotifications((prev) => prev.filter((item) => item.id !== deletedId));
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const handleMarkOne = async (id: string) => {
     try {

@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import type { AppointmentMessage } from "@/lib/types/legal";
 import { getErrorMessage } from "@/lib/errors";
+import { createClient } from "@/lib/supabase/client";
 
 interface AppointmentMessagesCardProps {
   appointmentId: string;
@@ -41,8 +42,33 @@ export function AppointmentMessagesCard({
         /* ignore */
       });
 
+    // Realtime subscription for incoming messages
+    const supabase = createClient();
+    if (!supabase) return () => { active = false; };
+
+    const channel = supabase
+      .channel(`realtime:messages:${appointmentId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "appointment_messages",
+          filter: `appointment_id=eq.${appointmentId}`,
+        },
+        (payload) => {
+          const newMsg = payload.new as AppointmentMessage;
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
+          });
+        }
+      )
+      .subscribe();
+
     return () => {
       active = false;
+      supabase.removeChannel(channel);
     };
   }, [appointmentId]);
 

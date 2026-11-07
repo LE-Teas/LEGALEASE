@@ -2036,3 +2036,32 @@ END; $$;
 
 REVOKE EXECUTE ON FUNCTION public.create_appointment_atomic FROM public, anon;
 GRANT EXECUTE ON FUNCTION public.create_appointment_atomic TO authenticated;
+
+-- ----------------------------------------------------------------------------
+-- REALTIME REPLICATION CONFIGURATION
+-- ----------------------------------------------------------------------------
+DO $$
+BEGIN
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE 
+      public.notifications,
+      public.appointments,
+      public.appointment_messages,
+      public.reviews,
+      public.payments,
+      public.support_tickets,
+      public.lawyer_verifications,
+      public.citizen_documents,
+      public.citizen_files;
+  EXCEPTION WHEN OTHERS THEN
+    NULL; -- Already present in publication
+  END;
+END $$;
+
+ALTER TABLE public.notifications REPLICA IDENTITY FULL;
+ALTER TABLE public.appointments REPLICA IDENTITY FULL;
+ALTER TABLE public.appointment_messages REPLICA IDENTITY FULL;
+ALTER TABLE public.reviews REPLICA IDENTITY FULL;
+ALTER TABLE public.payments REPLICA IDENTITY FULL;
+ALTER TABLE public.support_tickets REPLICA IDENTITY FULL;
+
