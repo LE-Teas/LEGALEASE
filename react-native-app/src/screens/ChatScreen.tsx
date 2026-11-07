@@ -192,3 +192,4 @@ const styles = StyleSheet.create({
   },
   sendButtonText: { color: '#0A2843', fontWeight: '700', fontSize: 14 },
 });
+

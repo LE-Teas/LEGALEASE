@@ -185,3 +185,4 @@ const styles = StyleSheet.create({
   detail: { fontSize: 13, color: '#334155', marginTop: 6, lineHeight: 18 },
   bold: { fontWeight: '700', color: '#0A2843' },
 });
+

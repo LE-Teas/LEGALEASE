@@ -195,3 +195,4 @@ const styles = StyleSheet.create({
   toggleText: { fontSize: 13, color: '#64748B' },
   toggleTextBold: { color: '#0CA275', fontWeight: '700' },
 });
+

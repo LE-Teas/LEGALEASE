@@ -118,3 +118,4 @@ const styles = StyleSheet.create({
   cardMsg: { fontSize: 13, color: '#475569', marginTop: 4, lineHeight: 18 },
   cardTime: { fontSize: 11, color: '#94A3B8', marginTop: 8 },
 });
+
