@@ -47,6 +47,11 @@ export function NotificationBell({ userId, role }: NotificationBellProps) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchNotifications();
 
+    // Request notification permissions for mobile and browser if not already asked
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+
     const supabase = createClient();
     if (!supabase) return;
 
@@ -62,8 +67,25 @@ export function NotificationBell({ userId, role }: NotificationBellProps) {
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          setNotifications((prev) => [payload.new as NotificationItem, ...prev.slice(0, 9)]);
+          const newNotif = payload.new as NotificationItem;
+          setNotifications((prev) => [newNotif, ...prev.slice(0, 9)]);
           setUnreadCount((c) => c + 1);
+
+          // Trigger native Web / Mobile notification if granted
+          if (typeof window !== "undefined" && "Notification" in window) {
+            if (Notification.permission === "granted") {
+              try {
+                new Notification(newNotif.title || "LegalEase Notification", {
+                  body: newNotif.body,
+                  icon: "/icons/icon-192x192.png",
+                });
+              } catch (e) {
+                console.error("Native notification failed:", e);
+              }
+            } else if (Notification.permission === "default") {
+              Notification.requestPermission();
+            }
+          }
         }
       )
       .subscribe();

@@ -15,11 +15,25 @@ export type SupabaseEnv = {
 };
 
 export function getSupabaseEnv(): SupabaseEnv | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  let url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !anonKey) {
     return null;
+  }
+
+  // When running in a mobile client or remote browser accessing via local network IP (e.g. 192.168.x.x),
+  // replace 127.0.0.1 / localhost with the actual host IP so the client can reach Supabase on port 54321
+  if (typeof window !== "undefined") {
+    const currentHost = window.location.hostname;
+    if (
+      currentHost &&
+      currentHost !== "localhost" &&
+      currentHost !== "127.0.0.1" &&
+      (url.includes("127.0.0.1") || url.includes("localhost"))
+    ) {
+      url = url.replace("127.0.0.1", currentHost).replace("localhost", currentHost);
+    }
   }
 
   return { url, anonKey };
