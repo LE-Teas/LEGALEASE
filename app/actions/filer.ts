@@ -10,6 +10,8 @@ import {
   type FilerLookupResult,
   normalizeCnic,
 } from "@/lib/services/filer";
+import { rateLimit, CNIC_LOOKUP_RATE_LIMIT } from "@/lib/security/rate-limit";
+import { hashCnicDigits, maskCnic } from "@/lib/privacy/cnic";
 
 export interface ActionResult<T = unknown> {
   ok: boolean;
@@ -28,19 +30,78 @@ async function requireAdmin() {
 
 /**
  * Server action: Citizen lookup of CNIC status.
- * Rate-limited and validated server-side.
- * Never sends the CNIC to external AI or third parties.
+ *
+ * Security controls (audit finding F-4 — previously anonymous and unlimited):
+ *  1. Requires an authenticated session. The ATL covers millions of people, so
+ *     an unauthenticated lookup is an enumeration oracle.
+ *  2. Per-user AND per-target rate limiting, so a signed-in user cannot walk
+ *     the CNIC space either.
+ *  3. The raw CNIC never reaches SQL: only an HMAC blind index is queried.
+ *  4. Audit logged with a masked CNIC (never the raw value).
+ *  5. Responses are minimal: status + dataset provenance, no extra fields.
  */
 export async function lookupCnicStatusAction(
   cnic: string
 ): Promise<ActionResult<FilerLookupResult>> {
   try {
+    const { user } = await getAuthState();
+    if (!user) {
+      return { ok: false, error: "Please sign in to check filer status." };
+    }
+
     const cleanCnic = normalizeCnic(cnic);
     if (!cleanCnic) {
       return { ok: false, error: "Invalid CNIC. Please enter a valid 13-digit Pakistani CNIC." };
     }
 
+    // Budget 1: how many lookups this user may run per window.
+    const userLimit = rateLimit(`cnic:user:${user.id}`, CNIC_LOOKUP_RATE_LIMIT);
+    if (!userLimit.allowed) {
+      return {
+        ok: false,
+        error: `Too many lookups. Please wait ${Math.ceil(
+          userLimit.retryAfterMs / 1000
+        )} seconds and try again.`,
+      };
+    }
+
+    // Budget 2: how many times ANY user may probe the same CNIC per window.
+    // Blocks a single target from being repeatedly harvested across accounts.
+    const targetLimit = rateLimit(
+      `cnic:target:${hashCnicDigits(cleanCnic)}`,
+      CNIC_LOOKUP_RATE_LIMIT
+    );
+    if (!targetLimit.allowed) {
+      return {
+        ok: false,
+        error: "Too many lookups for this CNIC. Please try again later.",
+      };
+    }
+
     const result = await lookupCitizenFilerStatus(cleanCnic);
+
+    // Audit trail without raw CNIC.
+    const admin = createAdminClient();
+    if (admin) {
+      await admin
+        .from("admin_audit_logs")
+        .insert({
+          admin_id: user.id,
+          action: "filer_status_lookup",
+          entity_type: "filer_records",
+          entity_id: null,
+          metadata: {
+            cnic_masked: maskCnic(cleanCnic),
+            outcome: result.status,
+            dataset: result.datasetName,
+          },
+        })
+        .then(
+          () => undefined,
+          () => undefined // audit failure must never break the lookup
+        );
+    }
+
     return { ok: true, data: result };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Error checking filer status.";

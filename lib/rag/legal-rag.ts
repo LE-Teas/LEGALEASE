@@ -225,7 +225,7 @@ export async function askLegalQuestion(context: LegalRagContext): Promise<RagAns
 
   // 4 — retrieve. Search the verified corpus. We only narrow by category if the corpus
   // actually returns chunks with that category, otherwise fall back to searching all documents.
-  let retrieved = await retrieveLegalChunks(supabase, {
+  const retrieved = await retrieveLegalChunks(supabase, {
     queryEmbedding,
     matchCount: cfg.maxRetrievedChunks,
     similarityThreshold: cfg.similarityThreshold,

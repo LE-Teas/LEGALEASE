@@ -15,6 +15,13 @@
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  hashCnicDigits,
+  normalizeCnicDigits,
+  formatCnicForDisplay,
+  maskCnic,
+  CnicConfigError,
+} from "@/lib/privacy/cnic";
 
 export interface FilerLookupResult {
   found: boolean;
@@ -78,21 +85,19 @@ export interface ParseFilerResult {
 /**
  * Normalizes any CNIC string (e.g., "42101-1234567-1" or "4210112345671") to
  * exactly 13 numeric digits. Returns null if invalid.
+ *
+ * Canonical implementation lives in `lib/privacy/cnic.ts`; re-exported here so
+ * existing call sites and this module's public API stay stable.
  */
 export function normalizeCnic(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const digits = String(raw).replace(/[^0-9]/g, "");
-  if (digits.length !== 13) return null;
-  return digits;
+  return normalizeCnicDigits(raw);
 }
 
 /**
  * Formats a 13-digit CNIC into standard Pakistani display format: XXXXX-XXXXXXX-X
  */
 export function formatCnic(digits: string): string {
-  const clean = digits.replace(/[^0-9]/g, "");
-  if (clean.length !== 13) return digits;
-  return `${clean.slice(0, 5)}-${clean.slice(5, 12)}-${clean.slice(12)}`;
+  return formatCnicForDisplay(digits);
 }
 
 /**
@@ -344,7 +349,16 @@ export function parseFilerSpreadsheet(
 
 /**
  * Checks a citizen's CNIC against the active filer dataset.
- * Server-side only; does not send CNIC to any external service or LLM.
+ *
+ * Privacy design (see `lib/privacy/cnic.ts`):
+ *  - The raw CNIC never leaves this function. Only an HMAC blind index is sent
+ *    to the database, so no query log, RPC argument, or DB dump contains it.
+ *  - Lookup runs through `lookup_filer_status_by_hmac`, a security-definer RPC
+ *    that is executable by authenticated users only (see the security migration).
+ *  - The returned `cnicFormatted` value is the requester's own input echoed
+ *    back for display; it is never read from storage.
+ *
+ * Server-side only; does not send the CNIC to any external service or LLM.
  */
 export async function lookupCitizenFilerStatus(
   rawCnic: string
@@ -354,49 +368,43 @@ export async function lookupCitizenFilerStatus(
     throw new Error("Please enter a valid 13-digit Pakistani CNIC number.");
   }
 
-  const formatted = formatCnic(cleanCnic);
-  const supabase = await createClient();
+  const formatted = formatCnicForDisplay(cleanCnic);
 
+  // Fail closed with a clear, non-identifying message when the blind-index key
+  // is missing. We must not fall back to plaintext lookup.
+  let cnicHmac: string;
+  try {
+    cnicHmac = hashCnicDigits(cleanCnic);
+  } catch (err) {
+    if (err instanceof CnicConfigError) {
+      throw new Error(
+        "Filer status lookup is temporarily unavailable. Please try again later."
+      );
+    }
+    throw err;
+  }
+
+  const supabase = await createClient();
   if (!supabase) {
     throw new Error("Database unavailable. Please try again later.");
   }
 
-  // First try the RPC function
   const { data: rpcData, error: rpcErr } = await supabase.rpc(
-    "lookup_active_filer_status",
-    { p_cnic: cleanCnic }
+    "lookup_filer_status_by_hmac",
+    { p_hmac: cnicHmac }
   );
 
-  if (!rpcErr && rpcData && rpcData.length > 0) {
-    const row = rpcData[0];
-    const found = Boolean(row.found);
-    const status = found
-      ? (row.status as "filer" | "non_filer")
-      : "not_found";
-
-    return {
-      found,
-      cnicFormatted: formatted,
-      status,
-      taxYear: row.tax_year || null,
-      source: row.source || "FBR Active Taxpayers List",
-      effectiveDate: row.effective_date || null,
-      datasetName: row.dataset_name || null,
-      datasetUploadedAt: row.dataset_uploaded_at || null,
-      guidance: status === "non_filer" ? VERIFIED_NON_FILER_GUIDANCE : null,
-    };
+  // Never surface the raw database error: it would leak RPC/column names.
+  if (rpcErr) {
+    console.error(
+      `[filer] lookup_filer_status_by_hmac failed for ${maskCnic(cleanCnic)}:`,
+      rpcErr.message
+    );
+    throw new Error("Filer status lookup failed. Please try again later.");
   }
 
-  // Fallback: direct table queries via server client
-  const { data: activeDataset } = await supabase
-    .from("filer_datasets")
-    .select("id, file_name, source, tax_year, effective_date, uploaded_at")
-    .eq("status", "active")
-    .order("activated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!activeDataset) {
+  const row = Array.isArray(rpcData) ? rpcData[0] : null;
+  if (!row) {
     return {
       found: false,
       cnicFormatted: formatted,
@@ -410,38 +418,23 @@ export async function lookupCitizenFilerStatus(
     };
   }
 
-  const { data: record } = await supabase
-    .from("filer_records")
-    .select("status, tax_year, source, effective_date")
-    .eq("dataset_id", activeDataset.id)
-    .eq("cnic_normalized", cleanCnic)
-    .maybeSingle();
-
-  if (record) {
-    const status = record.status as "filer" | "non_filer";
-    return {
-      found: true,
-      cnicFormatted: formatted,
-      status,
-      taxYear: record.tax_year || activeDataset.tax_year,
-      source: record.source || activeDataset.source,
-      effectiveDate: record.effective_date || activeDataset.effective_date,
-      datasetName: activeDataset.file_name,
-      datasetUploadedAt: activeDataset.uploaded_at,
-      guidance: status === "non_filer" ? VERIFIED_NON_FILER_GUIDANCE : null,
-    };
-  }
+  const found = Boolean(row.found);
+  // `not found in the active ATL` is deliberately distinct from `non_filer`:
+  // absence from the dataset is not evidence of non-filing.
+  const status: FilerLookupResult["status"] = found
+    ? (row.status as "filer" | "non_filer")
+    : "not_found";
 
   return {
-    found: false,
+    found,
     cnicFormatted: formatted,
-    status: "not_found",
-    taxYear: activeDataset.tax_year,
-    source: activeDataset.source,
-    effectiveDate: activeDataset.effective_date,
-    datasetName: activeDataset.file_name,
-    datasetUploadedAt: activeDataset.uploaded_at,
-    guidance: null,
+    status,
+    taxYear: row.tax_year || null,
+    source: row.source || "FBR Active Taxpayers List",
+    effectiveDate: row.effective_date || null,
+    datasetName: row.dataset_name || null,
+    datasetUploadedAt: row.dataset_uploaded_at || null,
+    guidance: status === "non_filer" ? VERIFIED_NON_FILER_GUIDANCE : null,
   };
 }
 
@@ -511,6 +504,10 @@ export async function persistFilerDataset(
   for (let i = 0; i < parsed.records.length; i += BATCH_SIZE) {
     const batch = parsed.records.slice(i, i + BATCH_SIZE).map((r) => ({
       dataset_id: datasetId,
+      // Blind index: the lookup key. Computed here with the server-only key.
+      cnic_hmac: hashCnicDigits(r.cnic),
+      // Legacy plaintext column is still NOT NULL in the v2 schema, so keep
+      // writing it until migration 0003 drops it. Lookups never read it.
       cnic_normalized: r.cnic,
       status: r.status,
       tax_year: r.taxYear || taxYear,

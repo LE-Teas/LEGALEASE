@@ -43,7 +43,13 @@ async function requireAdmin() {
  * - Detects type (Constitution, Federal/Provincial Laws, ATL/FBR excel)
  * - Automatically derives Title, Year, Category from file names & content
  * - Automatically parses text, chunks text, and generates Gemini embeddings
- * - Sets status directly to 'verified' & 'ready' so it's immediately active in RAG
+ *
+ * Verification policy (audit finding F-7): documents are ingested as
+ * `needs_review` by default. Because `match_legal_chunks` only serves
+ * `verification_status = 'verified'`, an ingested statute is NOT citable until
+ * a human approves it. The admin may opt in to immediate verification by
+ * sending `autoVerify=true`; the approving admin is recorded in
+ * `verified_by` / `verified_at` so the corpus always has an approval trail.
  */
 export async function autoBulkIngestAction(formData: FormData): Promise<BulkUploadSummary> {
   const guard = await requireAdmin();
@@ -87,6 +93,14 @@ export async function autoBulkIngestAction(formData: FormData): Promise<BulkUplo
       results: [],
     };
   }
+
+  /**
+   * Auto-verify is an explicit, per-run decision by the signed-in admin.
+   * Default is false: documents land in `needs_review` and are not citable
+   * until a human approves them.
+   */
+  const autoVerify = formData.get("autoVerify") === "true";
+  const reviewerId = guard.user.id;
 
   const results: BulkUploadFileResult[] = [];
   let successful = 0;
@@ -197,14 +211,22 @@ export async function autoBulkIngestAction(formData: FormData): Promise<BulkUplo
             year: classified.year,
             file_hash: fileHash,
             storage_path: storagePath,
-            verification_status: "verified",
+            // Default: needs_review (not citable). Only an explicit admin
+            // opt-in verifies immediately, and the reviewer is recorded.
+            verification_status: autoVerify ? "verified" : "needs_review",
             processing_status: "extracting",
-            requires_review: false,
+            requires_review: !autoVerify,
+            verified_by: autoVerify ? reviewerId : null,
+            verified_at: autoVerify ? new Date().toISOString() : null,
             created_by: guard.user.id,
             metadata: {
               original_filename: rawName,
               auto_ingested: true,
+              auto_verified: autoVerify,
               ingested_at: new Date().toISOString(),
+              review_reason: autoVerify
+                ? null
+                : "Bulk-ingested; awaiting authorized review before it can be cited.",
             },
           })
           .select("id")

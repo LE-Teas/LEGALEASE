@@ -23,6 +23,11 @@ export function BulkUploadZone() {
   const [processing, setProcessing] = useState(false);
   const [progressMsg, setProgressMsg] = useState<string | null>(null);
   const [summary, setSummary] = useState<BulkUploadSummary | null>(null);
+  /**
+   * Verification is a human decision. Off by default: ingested laws land in
+   * `needs_review` and are NOT citable by the AI until approved.
+   */
+  const [autoVerify, setAutoVerify] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFiles = (files: FileList | null) => {
@@ -50,6 +55,8 @@ export function BulkUploadZone() {
     selectedFiles.forEach((file) => {
       formData.append("files", file);
     });
+    // Explicit admin decision: verify immediately, or queue for review.
+    formData.append("autoVerify", autoVerify ? "true" : "false");
 
     try {
       const res = await autoBulkIngestAction(formData);
@@ -158,6 +165,27 @@ export function BulkUploadZone() {
                 </div>
               ))}
             </div>
+
+            {/* Verification policy — explicit, never implicit. */}
+            <label
+              htmlFor="auto-verify-toggle"
+              className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50/60 p-2.5 cursor-pointer"
+            >
+              <input
+                id="auto-verify-toggle"
+                type="checkbox"
+                checked={autoVerify}
+                onChange={(e) => setAutoVerify(e.target.checked)}
+                disabled={processing}
+                className="mt-0.5 size-3.5 accent-teal"
+              />
+              <span className="text-[11px] leading-snug text-amber-900">
+                <strong>Mark as verified immediately.</strong>{" "}
+                Off by default — files are ingested for review and the AI assistant
+                will <em>not</em> cite them until you approve them. Only enable this if
+                you have confirmed these are the current, authentic texts.
+              </span>
+            </label>
 
             <Button
               onClick={handleStartIngest}

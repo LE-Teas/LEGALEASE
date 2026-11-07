@@ -48,9 +48,14 @@ next-env.d.ts
 
 # large knowledgebase raw files & database exports
 Knowledgebase/atl/
-*.sql
 *.xlsx
 *.csv
+
+# SQL: ignore ad-hoc dumps/exports, but ALWAYS track schema + migrations.
+# (Previously `*.sql` was ignored wholesale, which silently hid migrations.)
+*.sql
+!supabase/*.sql
+!supabase/migrations/*.sql
 
 # react native expo mobile app
 react-native-app/node_modules/
@@ -60,3 +65,4 @@ react-native-app/ios/
 react-native-app/dist/
 
 
+core

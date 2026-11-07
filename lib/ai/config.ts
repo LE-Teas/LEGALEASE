@@ -49,8 +49,10 @@ export function getAiConfig(): AiConfig {
     geminiApiKey,
     geminiModel,
     embeddingProvider: "gemini",
-    embeddingApiKey: geminiApiKey,
-    embeddingModel: "text-embedding-004",
+    embeddingApiKey: env("GEMINI_API_KEY") ?? env("GOOGLE_API_KEY") ?? env("GOOGLE_GENERATIVE_AI_API_KEY"),
+    // Must stay in lockstep with EMBEDDING_MODEL_ID in lib/ai/embeddings.ts and
+    // the vector(1536) column in legal_chunks. See AI_RAG_DOCUMENTATION.md.
+    embeddingModel: "gemini-embedding-001",
     embeddingDimensions: numberEnv("EMBEDDING_DIMENSIONS", DEFAULT_EMBEDDING_DIMENSIONS),
     maxRetrievedChunks: numberEnv("LEGALEASE_MAX_RETRIEVED_CHUNKS", 8),
     similarityThreshold: numberEnv("LEGALEASE_SIMILARITY_THRESHOLD", DEFAULT_THRESHOLD),

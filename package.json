@@ -15,7 +15,9 @@
     "check": "npm run typecheck && npm run lint && npm run build",
     "ingest:legal": "tsx scripts/ingest-legal-documents.ts",
     "evaluate:rag": "tsx scripts/evaluate-rag.ts",
-    "verify:system": "tsx scripts/verify-full-system.ts"
+    "verify:system": "tsx scripts/verify-full-system.ts",
+    "test": "tsx --test tests/*.test.ts",
+    "test:embed": "tsx scripts/check-embeddings.ts"
   },
   "dependencies": {
     "@google/genai": "^2.32.0",
