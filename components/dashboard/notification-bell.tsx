@@ -76,7 +76,7 @@ export function NotificationBell({ userId, role }: NotificationBellProps) {
             if (Notification.permission === "granted") {
               try {
                 new Notification(newNotif.title || "LegalEase Notification", {
-                  body: newNotif.body,
+                  body: newNotif.message,
                   icon: "/icons/icon-192x192.png",
                 });
               } catch (e) {
